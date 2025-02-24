@@ -21,6 +21,7 @@
   bibliography: bibliography("refs.bib"),
 )
 
+> asdfs
 
 // table of contents
 #v(6mm)
@@ -28,6 +29,19 @@
 #pagebreak()
 
 = Introduction
+
+#quote(
+  block: true,
+  lorem(50)
+)
+
+#quote(block:true,"
+This is a single-line quote.
+This is a second-line quote.
+")
+
+
+
 Scientific writing is a crucial part of the research process, allowing researchers to share their findings with the wider scientific community. However, the process of typesetting scientific documents can often be a frustrating and time-consuming affair, particularly when using outdated tools such as LaTeX. Despite being over 30 years old, it remains a popular choice for scientific writing due to its power and flexibility. However, it also comes with a steep learning curve, complex syntax, and long compile times, leading to frustration and despair for many researchers @netwok2020 @netwok2022.
 
 == Paper overview
@@ -50,7 +64,7 @@ export const GALLERY_TABLE_HEADERS: DataTableHeaderProps[] = [
   { label: "작성일", widthPercentage: 10, sort: true, selector: "createdAt" },
   { label: "관리", widthPercentage: 7, sort: false },
 ];
-```
+``` 
 
 this is a test code for typescript
 
@@ -69,8 +83,7 @@ Overall, we believe that Typst represents a significant step forward in the fiel
 
 // 수식
 $ a + b = gamma $ <eq:gamma> // equation with label
-$sum_(i in NN) 1 + i$
-
+$ sum_(i in NN) 1 + i $
 
 
 #lorem(80)
@@ -100,7 +113,6 @@ In @fig:sun you can see a common representation of the Sun, which is a star that
 	table.header([번호],[이름],[설명],),[1],[사과],[빨간 과일],[2],[바나나],[노란 과일],[3],[키위],[초록 과일],  )
 ) <tab:mytable>
 
-#table(table.header([제목],[내용],[설명],),[테스트1],[테스트2],[테스트3],[테스트1],[테스트2],[테스트3],[테스트1],[테스트2],[테스트3],)
 
 In @tab:mytable, you see the planets of the solar system and their average distance from the Sun.
 The distances were calculated with @eq:gamma that we presented in @sec:methods.

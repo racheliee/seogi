@@ -62,7 +62,7 @@
     )
     let numbers = numbering(fig.numbering, ..fig.counter.at(fig.location()))
     show figure.caption: it => [#prefix~#numbers: #it.body]
-    show figure.caption.where(kind: table): smallcaps
+    show figure.caption: set align(center)
     fig
   }
 
@@ -88,9 +88,8 @@
     }
   }
 
-  
-
-
+  // quote style with italic font and indent and line infront 
+ show quote.where(block: true): block.with(stroke: (left:1.5pt + gray, rest: none))
   
 
   // Configure the page and multi-column properties. (set to 1 in default)
@@ -153,15 +152,10 @@
   set list(indent: 10pt, body-indent: 9pt)
 
   // Configure headings.
-  set heading(numbering: "1.a.i  ")
+  set heading(numbering: "1.1.1  ")
   show heading: it => {
-    // Find out the final number of the heading counter.
+    // Get all heading counter levels
     let levels = counter(heading).get()
-    let deepest = if levels != () {
-      levels.last()
-    } else {
-      1
-    }
 
     set text(10pt, weight: 400)
     if it.level == 1 {
@@ -169,32 +163,34 @@
       // We don't want to number the acknowledgment section.
       let is-ack = it.body in ([Acknowledgment], [Acknowledgement], [Acknowledgments], [Acknowledgements])
       set align(left)
-      set text(if is-ack { 10pt } else { 11pt }, weight: "bold")
-      show: block.with(above: 15pt, below: 13.75pt, sticky: true)
+      set text(if is-ack { 14pt } else { 14pt }, weight: "bold")
+      show: block.with(above: 25pt, below: 13.75pt, sticky: true)
       if it.numbering != none and not is-ack {
-        numbering("1 ", deepest)
+        numbering("1.", ..levels)
         h(7pt, weak: true)
       }
       it.body
     } else if it.level == 2 {
       // Second-level headings are run-ins.
       set par(first-line-indent: 0pt)
-      set text( weight: "bold", size: 9pt)
-      show: block.with(spacing: 10pt, sticky: true)
+      set text( weight: "bold", size: 11pt)
+      show: block.with(spacing: 11pt, sticky: true)
       if it.numbering != none {
-        numbering("a.", deepest)
+        numbering("1.1.", ..levels)
         h(7pt, weak: true)
       }
       it.body
-    } else [
-      // Third level headings are run-ins too, but different.
-      #if it.level == 3 {
-        v(1em)
-        numbering("i)", deepest)
-        [ ]
+    } else if it.level == 3 {
+      // Third-level headings are run-ins.
+      set par(first-line-indent: 0pt)
+      set text(weight: "bold", size: 9pt)
+      show: block.with(spacing: 11pt, sticky: true)
+      if it.numbering != none {
+        numbering("1.1.1.", ..levels)
+        h(7pt, weak: true)
       }
-      _#(it.body):_
-    ]
+      it.body
+    }
   }
 
   // Style bibliography.
