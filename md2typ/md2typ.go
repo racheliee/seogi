@@ -1,3 +1,6 @@
+// go build -o md2typ .	: 실행 파일 생성
+// ./md2typ ./sample/convert-test.md : 테스트 실행
+
 package main
 
 import (
