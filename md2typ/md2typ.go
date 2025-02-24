@@ -199,6 +199,25 @@ func parseImageMeta(metaRaw string) imageMeta {
 	return im
 }
 
+type childNodes interface {
+	GetChildren() []ast.Node
+}
+
+// renderChildNodes는 주어진 노드의 자식들을 임시 버퍼에 렌더링한 결과를 반환
+func (r *typRenderer) renderChildNodes(n childNodes) string {
+	var tempBuilder strings.Builder
+	// r의 얕은 복사본을 생성하고 builder를 임시 버퍼로 교체
+	tempRenderer := *r
+	tempRenderer.builder = &tempBuilder
+
+	// n의 자식 노드를 순회하며 렌더링
+	for _, child := range n.GetChildren() {
+		ast.Walk(child, &typVisitor{r: &tempRenderer})
+	}
+	// 마지막 2개의 newline을 제거한 후 반환 (paragraph의 경우 두 번의 newline이 추가되므로)
+	return strings.TrimSuffix(tempBuilder.String(), "\n\n")
+}
+
 // isBeginExclude는 HTML에 <!--typst-begin-exclude가 포함되었는지 확인
 func isBeginExclude(html string) bool {
 	return strings.Contains(html, "<!--typst-begin-exclude")
@@ -315,16 +334,23 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// PARAGRAPH
 	// ---------------------------------------------------------
 	case *ast.Paragraph:
-		r.builder.WriteString("\n")
+		if !entering {
+			r.builder.WriteString("\n\n")
+		}
 
 	// ---------------------------------------------------------
 	// BLOCKQUOTE
 	// ---------------------------------------------------------
 	case *ast.BlockQuote:
 		if entering {
-			r.builder.WriteString("#quote(block:true,\"")
-		} else {
-			r.builder.WriteString("\")\n\n")
+			// 자식 노드를 별도의 임시 버퍼에 렌더링 후, 결과를 받아옴
+			content := r.renderChildNodes(n)
+			// blockquote 시작 마커와 함께 출력
+			r.builder.WriteString("\n#quote(block:true,\"")
+			r.builder.WriteString(content)
+			r.builder.WriteString("\")\n")
+			// 자식 노드 처리를 이미 했으므로 더 이상 순회하지 않음
+			return ast.SkipChildren
 		}
 
 	// ---------------------------------------------------------
@@ -411,10 +437,16 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 		}
 	case *ast.ListItem:
 		if entering {
-			r.builder.WriteByte('[')
-		} else {
-			r.builder.WriteString("],")
+			// 리스트 아이템 시작 시, 헬퍼 함수를 호출해 자식 내용을 캡처
+			content := r.renderChildNodes(n)
+			r.builder.WriteString("[")
+			r.builder.WriteString(content)
+			r.builder.WriteString("],\n")
+			// 자식 노드를 이미 처리했으므로 더 이상 순회하지 않도록 SkipChildren 반환
+			return ast.SkipChildren
 		}
+	
+	
 
 	// ---------------------------------------------------------
 	// TABLES
