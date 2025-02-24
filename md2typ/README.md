@@ -1,109 +1,107 @@
 # md2typ
 
-- `md2typ`는 Markdown 파일을 Typst 형식으로 변환하는 golang program
-- [gomarkdown/markdown](https://github.com/gomarkdown/markdown) 패키지를 사용하여 Markdown 텍스트를 AST(Abstract Syntax Tree)로 파싱한 후, AST를 순회하면서 각 Markdown 요소를 Typst 문법으로 변환
+- `md2typ` is a Golang program that converts Markdown files into Typst format.
+- It uses the [gomarkdown/markdown](https://github.com/gomarkdown/markdown) package to parse Markdown text into an Abstract Syntax Tree (AST), and then traverses the AST to convert each Markdown element into Typst syntax.
 
 ---
 
-## 주요 기능
+## Key Features
 
-- **Markdown → Typst 변환**:  
-  Markdown의 다양한 구문(헤딩, 단락, 인용구, 강조, 코드, 리스트, 테이블, 이미지, 링크 등)을 Typst 형식으로 변환
+- **Markdown → Typst Conversion**:  
+  Converts various Markdown syntax elements (headings, paragraphs, blockquotes, emphasis, code, lists, tables, images, links, etc.) into Typst format.
 
-- **헤딩 변환**:  
-  Markdown의 `# Heading` 구문을 Typst의 등호(`=`)를 사용한 헤딩 형식으로 변환합니다. (예: `# Heading` → `= Heading`)
+- **Heading Conversion**:  
+  Converts Markdown's `# Heading` syntax into Typst's heading format using equals signs (`=`) (e.g., `# Heading` → `= Heading`).
 
-- **단락 및 줄바꿈**:  
-  각 단락은 두 개의 빈 줄로 구분되어 Typst 형식으로 출력
+- **Paragraphs and Line Breaks**:  
+  Each paragraph is separated by two empty lines in the Typst output.
 
-- **인용구**:  
-  옵션 `OptionBlockquote`가 활성화되면 Markdown의 인용구를 Typst의 `#quote[...]` 구문으로 변환
+- **Blockquotes**:  
+  When the `OptionBlockquote` option is enabled, Markdown blockquotes are converted into Typst's `#quote[...]` syntax.
 
-  > 후에 template `#blockquote` 수정 필요
+  > Later, the `#blockquote` template needs to be modified.
 
-- **텍스트 서식**:
+- **Text Formatting**:
 
-  - _이탤릭체_: `#emph[...]`
-  - **볼드체**: `#strong[...]`
-  - ~~취소선~~: `#strike[...]`
+  - _Italics_: `#emph[...]`
+  - **Bold**: `#strong[...]`
+  - ~~Strikethrough~~: `#strike[...]`
 
-- **코드**:
+- **Code**:
 
-  - 인라인 코드: `#raw(block:false, "코드")`
-  - 코드 블록: `#raw(block:true, lang:"언어", "코드")`
+  - Inline code: `#raw(block:false, "code")`
+  - Code blocks: `#raw(block:true, lang:"language", "code")`
 
-- **수평 구분선**:  
-  Markdown의 수평 구분선은 Typst의 `#line(length:100%)`으로 변환됨
+- **Horizontal Rule**:  
+  Markdown's horizontal rule is converted into Typst's `#line(length:100%)`.
 
-- **리스트**:  
-  순서가 있는 리스트는 `#enum(start:1, ... )`, 순서 없는 리스트는 `#list(...)`로 변환되며, 각 리스트 항목은 대괄호(`[ ]`)로 감싸짐
+- **Lists**:  
+  Ordered lists are converted into `#enum(start:1, ... )`, and unordered lists are converted into `#list(...)`. Each list item is wrapped in square brackets (`[ ]`).
 
-- **테이블**:  
-  Markdown 테이블은 Typst의 `#figure(...)` 내부의 `table(...)` 구문으로 변환됨
-  추가적으로 HTML 주석(`<!--typst-table ... -->`)을 통해 테이블의 메타데이터(캡션, 위치, 열 구성, 정렬, 라벨)를 설정 (default 값 존재)
+- **Tables**:  
+  Markdown tables are converted into Typst's `#figure(...)` syntax with `table(...)` inside. Additionally, HTML comments (`<!--typst-table ... -->`) can be used to set table metadata (caption, position, column structure, alignment, label) (default values exist).
 
-- **이미지**:  
-  Markdown 이미지 문법(`![alt](url)`)은 Typst의 `#figure(...)` 구문으로 변환
-  이미지 파일 경로에서 파일명을 추출해 `fig:파일명` 형태의 라벨을 자동 생성하며, alt 텍스트가 캡션으로 사용됨
+- **Images**:  
+  Markdown image syntax (`![alt](url)`) is converted into Typst's `#figure(...)` syntax. The filename is extracted from the image file path to automatically generate a label in the form of `fig:filename`, and the alt text is used as the caption.
 
-- **링크**:  
-  Markdown의 링크는 `#link("URL")[텍스트]` 형식으로 변환됨
+- **Links**:  
+  Markdown links are converted into `#link("URL")[text]` format.
 
-- **수식 표현**:  
-  인라인 수식은 `$...$`, 블록 수식은 `$$...$$` 형태로 변환됨
+- **Math Expressions**:  
+  Inline math expressions are converted into `$...$`, and block math expressions are converted into `$$...$$`.
 
-  > 블록 수식의 경우 md 파일의 auto formatting으로 인한 문제로 <!-raw-typst--> 주석을 이용하거나 다른 방안 구상 필요
+  > For block math expressions, due to auto-formatting issues in Markdown files, consider using `<!-raw-typst-->` comments or other solutions.
 
-- **Raw Typst 코드 및 제외 블록**:
-  - HTML 주석에 포함된 `<!--raw-typst ... -->` 코드는 Typst 코드로 그대로 추출
-  - `<!--typst-begin-exclude-->`와 `<!--typst-end-exclude-->` 사이의 블록은 변환 대상에서 제외
+- **Raw Typst Code and Exclusion Blocks**:
+  - Code within HTML comments like `<!--raw-typst ... -->` is extracted as raw Typst code.
+  - Blocks between `<!--typst-begin-exclude-->` and `<!--typst-end-exclude-->` are excluded from conversion.
 
-## 실행 방법
+## How to Run
 
-### 빌드
+### Build
 
-프로젝트 디렉토리에서 다음 명령어를 실행하여 `md2typ` 실행 파일을 생성합니다.
+Run the following command in the project directory to build the `md2typ` executable:
 
 ```bash
 go build -o md2typ .
 ```
 
-### 변환 실행
+### Conversion Execution
 
-Markdown 파일을 Typst 형식으로 변환하려면 아래와 같이 실행합니다.
+To convert a Markdown file into Typst format, run the following command:
 
 ```bash
 ./md2typ <input.md> [output.typ]
 ```
 
-- `<input.md>`: 변환할 Markdown 파일의 경로
-- `[output.typ]`: (선택 사항) 출력할 Typst 파일 경로. 지정하지 않을 경우, 입력 파일과 동일한 이름에 `.typ` 확장자가 붙은 파일이 생성됩니다.
+- `<input.md>`: Path to the Markdown file to be converted.
+- `[output.typ]`: (Optional) Path to the output Typst file. If not specified, a file with the same name as the input file but with a `.typ` extension will be created.
 
-예시:
+Example:
 
 ```bash
 ./md2typ ./sample/convert-test.md
 ```
 
-위 명령어는 `./sample/convert-test.md` 파일을 변환하여 `convert-test.typ` 파일로 저장
+The above command converts `./sample/convert-test.md` and saves it as `convert-test.typ`.
 
 ---
 
-## 옵션 및 설정
+## Options and Settings
 
-현재 변환 옵션은 하드코딩 되어 있으며, 아래와 같이 비트 플래그 형태로 조합하여 사용
+Currently, conversion options are hardcoded and can be combined using bit flags as follows:
 
-- `OptionBlockquote`: 블록 인용구 변환 활성화
-- `OptionRawTypst`: Raw Typst 코드 처리 활성화
-- `OptionMath`: 수학 표현 변환 활성화
+- `OptionBlockquote`: Enables blockquote conversion.
+- `OptionRawTypst`: Enables raw Typst code processing.
+- `OptionMath`: Enables math expression conversion.
 
-이 옵션들은 `main` 함수 내에서 조합되어 사용되며, 필요에 따라 추가 조정이 가능
+These options are combined and used within the `main` function and can be adjusted as needed.
 
 ---
 
 ## TODO
 
-- subpar image 주석과 대응하도록 수정 필요
-- YAML 헤더를 통해 템플릿의 메타데이터 설정 가능하도록 개선
-- raw-typst 주석은 코드 블록 위에 별도로 삽입할 수 있도록 고려
-- template에 따라 옵션을 다르게 적용하여 변환 하는 것 고려
+- Modify to handle subpar image comments and their corresponding adjustments.
+- Improve to allow setting template metadata via YAML headers.
+- Consider allowing raw-typst comments to be inserted separately above code blocks.
+- Consider applying different options based on the template during conversion.
