@@ -1,6 +1,10 @@
 // go build -o md2typ .	: 실행 파일 생성
 // ./md2typ ./sample/convert-test.md : 테스트 실행
 
+// TODO: subpar image 주석과 대응하게 사용할 수 있도록 수정
+// TODO: yaml header를 통해 template의 메타데이터 설정 가능하도록 수정
+// TODO: raw-typst 주석은 formatiing 잘 안보이기에 code block 위에 주석 존재 시 해당 typ code block을 삽입하는 것 고려
+
 package main
 
 import (
@@ -18,6 +22,7 @@ import (
 
 // Typst 변환 시 사용할 옵션 정의
 // iota를 사용해 각 상수를 2의 제곱 형태(비트 플래그)로 만듦
+// TODO: template에 따라 옵션을 다르게 적용하여 변환 하는 것 고려 (cmaker에서 아이디어 착안)
 const (
 	OptionBlockquote = 1 << iota // 1
 	OptionRawTypst               // 2
