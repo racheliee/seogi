@@ -68,9 +68,9 @@ Below is a simple table example:
     columns: (6em, auto, auto),
     align: (center, center, right),
     inset: (x: 8pt, y: 4pt),
-		stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
-		fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
-table.header([No.],[Name],[Description],),[1],[Apple],[Red fruit],[2],[Banana],[Yellow fruit],[3],[Kiwi],[Green fruit],  )
+			stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
+			fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
+	table.header([No.],[Name],[Description],),[1],[Apple],[Red fruit],[2],[Banana],[Yellow fruit],[3],[Kiwi],[Green fruit],  )
 ) <tab:mytable>
 
 == Raw Typst Tags

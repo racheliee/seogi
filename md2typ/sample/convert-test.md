@@ -66,11 +66,11 @@ Here is a link to [Google](https://www.google.com).
 Below is a simple table example:
 
 <!--typst-table
-caption: "This is an example of a table caption"
+caption: This is an example of a table caption
 placement: none
 columns: (6em, auto, auto)
 align: (center, center, right)
-label: "tab:mytable"
+label: mytable
 -->
 
 | No. | Name   | Description  |

@@ -1,6 +1,9 @@
 // go build -o md2typ .	: 실행 파일 생성
 // ./md2typ ./sample/convert-test.md : 테스트 실행
 
+// NOTE: trailing newline char는 tempbuiler를 이용하여 렌더링 후 제거하는 야매 방식으로 처리 -> 추후 수정 필요
+// NOTE: 동적 table column 계산을 위한 방법도 visitor의 다수 선언을 이용한 야매 방식으로 처리 -> 추후 수정 필요
+
 // TODO: subpar image 주석과 대응하게 사용할 수 있도록 수정
 // TODO: yaml header를 통해 template의 메타데이터 설정 가능하도록 수정
 
@@ -19,7 +22,7 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Constants & Basic Types
+//  Util Types & Constants
 // -----------------------------------------------------------------------------
 
 // 템플릿용 더미 옵션 2개
@@ -28,7 +31,7 @@ const (
 	OptionDummy2             // 2
 )
 
-// Options는 여러 옵션을 동시에 담기 위한 비트 플래그 타입
+// 여러 옵션을 동시에 담기 위한 비트 플래그 타입
 type Options uint8
 
 // table의 meta 정보를 담는 구조체
@@ -45,21 +48,36 @@ type imageMeta struct {
 	Label     string
 }
 
-// -----------------------------------------------------------------------------
-// Debugging & AST Traversal Types / Functions
-// -----------------------------------------------------------------------------
-
-// printAST는 Markdown 파싱 후 생성되는 AST(Abstract Syntax Tree) 구조를 콘솔에 출력하는 디버깅용 함수
-func printAST(node ast.Node, depth int) {
-	ast.Walk(node, &astVisitor{depth: depth})
-}
-
-// astVisitor는 AST를 순회하며 노드 정보를 콘솔에 출력하는 디버깅용 구조체
+// AST를 순회하며 노드 정보를 콘솔에 출력하는 디버깅용 구조체
 type astVisitor struct {
 	depth int
 }
 
-// Visit 함수는 ast.Walk에 의해 호출되어, AST의 각 노드를 방문할 때 실행됨
+// TableHeader를 찾기 위한 visitor 구조체
+type headerFinderVisitor struct {
+	header ast.Node
+}
+
+// TableCell의 개수를 세기 위한  visitor 구조체
+type cellCounterVisitor struct {
+	count int
+}
+
+// node의 자식 노드를 가져오기 위한 인터페이스
+type childNodes interface {
+	GetChildren() []ast.Node
+}
+
+// -----------------------------------------------------------------------------
+// Debugging & AST Traversal Functions
+// -----------------------------------------------------------------------------
+
+// Markdown 파싱 후 생성되는 AST(Abstract Syntax Tree) 구조를 콘솔에 출력하는 디버깅용 함수
+func printAST(node ast.Node, depth int) {
+	ast.Walk(node, &astVisitor{depth: depth})
+}
+
+// ast.Walk에 의해 호출되어, AST의 각 노드를 방문할 때 실행됨
 func (v *astVisitor) Visit(node ast.Node, entering bool) ast.WalkStatus {
 	if node == nil {
 		return ast.GoToNext
@@ -79,11 +97,33 @@ func (v *astVisitor) Visit(node ast.Node, entering bool) ast.WalkStatus {
 	return ast.GoToNext
 }
 
+// node를 순회하며 첫 번째 TableHeader를 찾아 저장
+func (v *headerFinderVisitor) Visit(n ast.Node, entering bool) ast.WalkStatus {
+	if entering {
+		if _, ok := n.(*ast.TableHeader); ok {
+			v.header = n
+			return ast.Terminate // 첫 번째 TableHeader를 찾았으므로 중단
+		}
+	}
+	return ast.GoToNext
+}
+
+// node를 순회하며 TableCell을 찾아 개수를 세고 cellCounterVisitor.count에 저장
+func (v *cellCounterVisitor) Visit(n ast.Node, entering bool) ast.WalkStatus {
+	if entering {
+		if _, ok := n.(*ast.TableCell); ok {
+			v.count++
+			return ast.SkipChildren // TableCell 내부는 더 이상 탐색할 필요 없음
+		}
+	}
+	return ast.GoToNext
+}
+
 // -----------------------------------------------------------------------------
 // Utility Functions (Table Meta, Image Meta, Exclusion, Raw Typst, String Escape)
 // -----------------------------------------------------------------------------
 
-// isTableMetaComment: HTML 블록 혹은 스팬 내에 `<!--typst-table` 라인이 있으면 해당 문자열을 반환
+// HTML 블록 혹은 스팬 내에 `<!--typst-table` 라인이 있으면 해당 문자열을 반환
 func isTableMetaComment(node ast.Node) (string, bool) {
 	var literal string
 
@@ -112,15 +152,16 @@ func isTableMetaComment(node ast.Node) (string, bool) {
 	return metaRaw, true
 }
 
-// parseTableMeta: 주석으로부터 table meta 정보를 파싱하여 tableMeta 구조체로 반환
+// 주석으로부터 table meta 정보를 파싱하여 tableMeta 구조체로 반환
 func parseTableMeta(metaRaw string) tableMeta {
 	// 기본값 설정
 	tm := tableMeta{
-		Caption:   "Default Table Caption", // 기본 캡션
-		Placement: "none",                  // 기본 위치 지정 없음
-		Columns:   "(auto, auto, auto)",    // 기본 3열
-		Align:     "(start, start, start)", // 기본 왼쪽 정렬
+		Caption:   "",
+		Placement: "none",
+		Columns:   "", // 빈 문자열이면 이후 동적 계산 진행
+		Align:     "", // 빈 문자열이면 align 옵션은 출력하지 않음
 	}
+	
 	lines := strings.Split(metaRaw, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -151,7 +192,14 @@ func parseTableMeta(metaRaw string) tableMeta {
 	return tm
 }
 
-// isImageMetaComment: HTML 내에 `<!--typst-image` 라인이 있으면 해당 문자열 반환
+// 주어진 노드 내부의 TableCell 개수를 반환
+func headerCellsCount(node ast.Node) int {
+	visitor := &cellCounterVisitor{}
+	ast.Walk(node, visitor)
+	return visitor.count
+}
+
+// HTML 내에 `<!--typst-image` 라인이 있으면 해당 문자열 반환
 func isImageMetaComment(node ast.Node) (string, bool) {
 	var literal string
 	switch x := node.(type) {
@@ -176,7 +224,7 @@ func isImageMetaComment(node ast.Node) (string, bool) {
 	return metaRaw, true
 }
 
-// parseImageMeta: 주석으로부터 image meta 정보를 파싱 후 imageMeta 구조체로 반환
+// 주석으로부터 image meta 정보를 파싱 후 imageMeta 구조체로 반환
 func parseImageMeta(metaRaw string) imageMeta {
 	im := imageMeta{}
 	lines := strings.Split(metaRaw, "\n")
@@ -199,11 +247,7 @@ func parseImageMeta(metaRaw string) imageMeta {
 	return im
 }
 
-type childNodes interface {
-	GetChildren() []ast.Node
-}
-
-// renderChildNodes는 주어진 노드의 자식들을 임시 버퍼에 렌더링한 결과를 반환
+// 주어진 노드의 자식들을 임시 버퍼에 렌더링한 결과를 반환
 func (r *typRenderer) renderChildNodes(n childNodes) string {
 	var tempBuilder strings.Builder
 	// r의 얕은 복사본을 생성하고 builder를 임시 버퍼로 교체
@@ -218,12 +262,12 @@ func (r *typRenderer) renderChildNodes(n childNodes) string {
 	return strings.TrimSuffix(tempBuilder.String(), "\n\n")
 }
 
-// isBeginExclude는 HTML에 <!--typst-begin-exclude가 포함되었는지 확인
+// HTML에 <!--typst-begin-exclude가 포함되었는지 확인
 func isBeginExclude(html string) bool {
 	return strings.Contains(html, "<!--typst-begin-exclude")
 }
 
-// isEndExclude는 현재 노드가 <!--typst-end-exclude-->인지 확인
+// 현재 노드가 <!--typst-end-exclude-->인지 확인
 func isEndExclude(node ast.Node) bool {
 	if htmlSpan, ok := node.(*ast.HTMLSpan); ok {
 		return strings.Contains(string(htmlSpan.Literal), "<!--typst-end-exclude")
@@ -234,7 +278,7 @@ func isEndExclude(node ast.Node) bool {
 	return false
 }
 
-// escapeString은 Typst 코드 내에서 필요한 백슬래시, 따옴표 등을 이스케이프 처리
+// Typst 코드 내에서 필요한 백슬래시, 따옴표 등을 이스케이프 처리
 func escapeString(s string) string {
 	var b strings.Builder
 	for _, ch := range s {
@@ -250,7 +294,7 @@ func escapeString(s string) string {
 // Typst 변환 관련 Types & Functions
 // -----------------------------------------------------------------------------
 
-// typRenderer는 Markdown AST를 Typst 포맷으로 변환하기 위한 렌더러 구조체
+// Markdown AST를 Typst 포맷으로 변환하기 위한 렌더러 구조체
 type typRenderer struct {
 	builder           *strings.Builder // 변환 결과를 담을 버퍼
 	opts              Options          // 활성화된 옵션 (현재는 더미 옵션)
@@ -262,17 +306,17 @@ type typRenderer struct {
 	rawTypstNext      bool             // raw-typst 주석 후 다음 code block을 typst 코드 그대로 삽입하기 위한 플래그
 }
 
-// typVisitor는 ast.Walk 시 실제 노드 방문 로직을 typRenderer에 위임하기 위한 구조체
+// ast.Walk 시 실제 노드 방문 로직을 typRenderer에 위임하기 위한 구조체
 type typVisitor struct {
 	r *typRenderer
 }
 
-// Visit는 Markdown AST를 순회하면서 각 노드를 typRenderer.walker에 전달
+// Markdown AST를 순회하면서 각 노드를 typRenderer.walker에 전달
 func (v *typVisitor) Visit(node ast.Node, entering bool) ast.WalkStatus {
 	return v.r.walker(node, entering)
 }
 
-// newTypRenderer는 typRenderer 구조체 인스턴스를 생성해 반환
+// typRenderer 구조체 인스턴스를 생성해 반환
 func newTypRenderer(opts Options, h1Level int) *typRenderer {
 	return &typRenderer{
 		builder: &strings.Builder{},
@@ -281,7 +325,7 @@ func newTypRenderer(opts Options, h1Level int) *typRenderer {
 	}
 }
 
-// Render 함수는 Markdown 텍스트를 AST로 파싱한 뒤, Typst 문자열로 변환해 반환
+// Markdown 텍스트를 AST로 파싱한 뒤, Typst 문자열로 변환해 반환
 func Render(md []byte, opts Options, h1Level int) (string, error) {
 	// Markdown 파서에 사용할 확장 기능들 설정
 	extensions := parser.CommonExtensions |
@@ -295,9 +339,9 @@ func Render(md []byte, opts Options, h1Level int) (string, error) {
 	doc := markdown.Parse(md, p)
 
 	// 디버그용 AST 출력
-	fmt.Println("==== AST 구조 출력 ====")
-	printAST(doc, 0)
-	fmt.Println("========================")
+	// fmt.Println("==== AST 구조 출력 ====")
+	// printAST(doc, 0)
+	// fmt.Println("========================")
 
 	// 생성한 AST를 기반으로 Typst 변환기를 생성 후 순회하며 변환 수행
 	r := newTypRenderer(opts, h1Level)
@@ -305,7 +349,7 @@ func Render(md []byte, opts Options, h1Level int) (string, error) {
 	return r.builder.String(), nil
 }
 
-// walker 함수는 AST를 순회하며, 노드 종류와 상태에 따라 Typst 코드를 생성
+// AST를 순회하며, 노드 종류와 상태에 따라 Typst 코드를 생성
 func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// <!--typst-begin-exclude-->가 등장하여 skipBlocks가 true인 경우,
 	// <!--typst-end-exclude--> 노드가 나올 때까지 모든 블록을 건너뜀
@@ -453,33 +497,55 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// ---------------------------------------------------------
 	case *ast.Table:
 		if entering {
-			// 테이블 메타정보가 있다면 사용, 없으면 기본값 사용
+			// meta 주석이 있으면 사용, 없으면 기본 meta 생성
 			var meta tableMeta
 			if r.currentTableMeta != nil {
 				meta = *r.currentTableMeta
 			} else {
 				meta = tableMeta{
-					Caption:   "Default Table Caption",
+					Caption:   "",
 					Placement: "none",
-					Columns:   "(auto, auto, auto)",
-					Align:     "(start, start, start)",
+					Columns:   "",
+					Align:     "",
 				}
 			}
 
+			// 테이블 내에서 첫 번째 TableHeader를 찾음
+			hfv := &headerFinderVisitor{}
+			ast.Walk(n, hfv)
+			headerCells := 0
+			if hfv.header != nil {
+				headerCells = headerCellsCount(hfv.header)
+			}
+
+			// columns 값이 빈 경우, 헤더 셀 수에 따라 자동 생성
+			if meta.Columns == "" {
+				cols := make([]string, headerCells)
+				for i := 0; i < headerCells; i++ {
+					cols[i] = "auto"
+				}
+				meta.Columns = "(" + strings.Join(cols, ", ") + ")"
+			}
+
 			r.builder.WriteString("#figure(\n")
-			r.builder.WriteString(fmt.Sprintf("  caption: [%s],\n", meta.Caption))
+			if meta.Caption != "" {
+				r.builder.WriteString(fmt.Sprintf("  caption: [%s],\n", meta.Caption))
+			}
 			r.builder.WriteString(fmt.Sprintf("  placement: %s,\n", meta.Placement))
 			r.builder.WriteString("  table(\n")
 			r.builder.WriteString(fmt.Sprintf("    columns: %s,\n", meta.Columns))
-			r.builder.WriteString(fmt.Sprintf("    align: %s,\n", meta.Align))
+			// align 값이 비어있으면 해당 옵션은 출력하지 않음
+			if meta.Align != "" {
+				r.builder.WriteString(fmt.Sprintf("    align: %s,\n", meta.Align))
+			}
 			r.builder.WriteString(`    inset: (x: 8pt, y: 4pt),
-		stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
-		fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
-`)
+			stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
+			fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
+	`)
 		} else {
 			r.builder.WriteString("  )\n")
 			if r.currentTableMeta != nil && r.currentTableMeta.Label != "" {
-				r.builder.WriteString(fmt.Sprintf(") <%s>\n", r.currentTableMeta.Label))
+				r.builder.WriteString(fmt.Sprintf(") <tab:%s>\n", r.currentTableMeta.Label))
 				r.currentTableMeta = nil
 			} else {
 				r.builder.WriteString(")\n")
@@ -606,13 +672,13 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			r.builder.WriteString(escapeString(content))
 			r.builder.WriteString(`$`)
 		}
-	case *ast.MathBlock:
-		if entering {
-			content := string(n.Literal)
-			r.builder.WriteString(`$$`)
-			r.builder.WriteString(escapeString(content))
-			r.builder.WriteString("$$\n\n")
-		}
+	// case *ast.MathBlock:
+	// 	if entering {
+	// 		content := string(n.Literal)
+	// 		r.builder.WriteString(`$$`)
+	// 		r.builder.WriteString(escapeString(content))
+	// 		r.builder.WriteString("$$\n\n")
+	// 	}
 
 	// ---------------------------------------------------------
 	// 줄바꿈 (Soft / Hard)
@@ -684,5 +750,5 @@ func main() {
 
 	// 변환 완료 메시지
 	_, _ = io.WriteString(os.Stdout,
-		fmt.Sprintf("성공적: %s -> %s\n", inputFile, outputFile))
+		fmt.Sprintf("success: %s -> %s\n", inputFile, outputFile))
 }
