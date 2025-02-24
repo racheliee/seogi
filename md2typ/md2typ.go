@@ -242,12 +242,12 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// ---------------------------------------------------------
 	case *ast.BlockQuote:
 		// OptionBlockquote가 설정된 경우에만 Typst의 blockquote 구문을 사용
-		// typ template file에 blockquote 관련 추가 필요
+		// TODO: Typst 템플릿 파일에 blockquote 관련 추가 필요 (임시로 quote로 대체)
 		if !r.hasOption(OptionBlockquote) {
 			return ast.GoToNext
 		}
 		if entering {
-			r.builder.WriteString("#blockquote[")
+			r.builder.WriteString("#quote[")
 		} else {
 			r.builder.WriteString("]\n\n")
 		}
