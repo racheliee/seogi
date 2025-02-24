@@ -5,16 +5,16 @@
   course: [Introduction to Test  (SWE3003)],
   authors: (
     (
-      name: "2020310083  Hyungjun Shon",
+      name: "20xxxxxx  Hyungjun Shon",
       department: [Dept. of Computer Science and Engineering],
       organization: [Sungkyunkwan University],
-      email: "shj1081@g.skku.edu"
+      email: "example@gmail.com"
     ),
     (
-      name: "2022310853  Rachel Park",
+      name: "20xxxxxxxx  Rachel Park",
       department: [Dept. of Computer Science and Engineering],
       organization: [Sungkyunkwan University],
-      email: "rachelie.dwg@gmail.com"
+      email: "example@gmail.com"
     ),
 
   ),
@@ -78,7 +78,7 @@ $sum_(i in NN) 1 + i$
 // 사진
 #figure(
   placement: none,
-  image("../arkheion/image.png"),
+  image("../../md2typ/sample/cat.png"),
   caption: [A circle representing the Sun.]
 ) <fig:sun> // figure with label
 

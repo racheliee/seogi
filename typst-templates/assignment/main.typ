@@ -6,8 +6,8 @@
   authors: (
     (
       name: "Hyungjun Shon",
-      email: "shj1081@g.skku.edu",
-      student-no: "2020310083",
+      email: "example@gmail.com",
+      student-no: "20xxxxxxxx",
     ),
   ),
 
