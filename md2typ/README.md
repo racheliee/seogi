@@ -17,9 +17,7 @@
   Each paragraph is separated by two empty lines in the Typst output.
 
 - **Blockquotes**:  
-  When the `OptionBlockquote` option is enabled, Markdown blockquotes are converted into Typst's `#quote[...]` syntax.
-
-  > Later, the `#blockquote` template needs to be modified.
+  When the `OptionBlockquote` option is enabled, Markdown blockquotes are converted into Typst's `#quote(block: true, "...")` syntax.
 
 - **Text Formatting**:
 

@@ -290,24 +290,20 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// PARAGRAPH
 	// ---------------------------------------------------------
 	case *ast.Paragraph:
-		if !entering {
-			// 문단이 끝날 때는 빈 줄 두 개 삽입
-			r.builder.WriteString("\n\n")
-		}
+		r.builder.WriteString("\n")
 
 	// ---------------------------------------------------------
 	// BLOCKQUOTE
 	// ---------------------------------------------------------
 	case *ast.BlockQuote:
-		// OptionBlockquote가 설정된 경우에만 Typst의 blockquote 구문을 사용
-		// TODO: Typst 템플릿 파일에 blockquote 관련 추가 필요 (임시로 quote로 대체)
+		// OptionBlockquote가 설정된 경우에만 Typst의 quote 구문을 사용
 		if !r.hasOption(OptionBlockquote) {
 			return ast.GoToNext
 		}
 		if entering {
-			r.builder.WriteString("#quote[")
+			r.builder.WriteString("#quote(block:true,\"")
 		} else {
-			r.builder.WriteString("]\n\n")
+			r.builder.WriteString("\")\n\n")
 		}
 
 	// ---------------------------------------------------------

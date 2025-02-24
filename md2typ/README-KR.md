@@ -17,9 +17,7 @@
   각 단락은 두 개의 빈 줄로 구분되어 Typst 형식으로 출력
 
 - **인용구**:  
-  옵션 `OptionBlockquote`가 활성화되면 Markdown의 인용구를 Typst의 `#quote[...]` 구문으로 변환
-
-  > 후에 template `#blockquote` 수정 필요
+  옵션 `OptionBlockquote`가 활성화되면 Markdown의 인용구를 Typst의 `#quote(block: true, "...")` 구문으로 변환
 
 - **텍스트 서식**:
 
