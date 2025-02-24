@@ -3,7 +3,6 @@
 
 // TODO: subpar image 주석과 대응하게 사용할 수 있도록 수정
 // TODO: yaml header를 통해 template의 메타데이터 설정 가능하도록 수정
-// TODO: raw-typst 주석은 formatiing 잘 안보이기에 code block 위에 주석 존재 시 해당 typ code block을 삽입하는 것 고려
 
 package main
 
@@ -12,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/gomarkdown/markdown"
@@ -24,13 +22,10 @@ import (
 // Constants & Basic Types
 // -----------------------------------------------------------------------------
 
-// Typst 변환 시 사용할 옵션 정의
-// iota를 사용해 각 상수를 2의 제곱 형태(비트 플래그)로 만듦
-// TODO: template에 따라 옵션을 다르게 적용하여 변환 하는 것 고려 (cmaker에서 아이디어 착안)
+// 템플릿용 더미 옵션 2개
 const (
-	OptionBlockquote = 1 << iota // 1
-	OptionRawTypst               // 2
-	OptionMath                   // 4
+	OptionDummy1 = 1 << iota // 1
+	OptionDummy2             // 2
 )
 
 // Options는 여러 옵션을 동시에 담기 위한 비트 플래그 타입
@@ -45,6 +40,10 @@ type tableMeta struct {
 	Label     string
 }
 
+// image의 meta 정보를 담는 구조체
+type imageMeta struct {
+	Label     string
+}
 
 // -----------------------------------------------------------------------------
 // Debugging & AST Traversal Types / Functions
@@ -80,9 +79,8 @@ func (v *astVisitor) Visit(node ast.Node, entering bool) ast.WalkStatus {
 	return ast.GoToNext
 }
 
-
 // -----------------------------------------------------------------------------
-// Utility Functions (Table Meta, Figure Label, Exclusion, Raw Typst, String Escape)
+// Utility Functions (Table Meta, Image Meta, Exclusion, Raw Typst, String Escape)
 // -----------------------------------------------------------------------------
 
 // isTableMetaComment: HTML 블록 혹은 스팬 내에 `<!--typst-table` 라인이 있으면 해당 문자열을 반환
@@ -153,11 +151,52 @@ func parseTableMeta(metaRaw string) tableMeta {
 	return tm
 }
 
-// getFigureLabel은 이미지 파일 경로에서 파일명을 추출해 "fig:파일명" 형태의 레이블을 생성
-func getFigureLabel(imagePath string) string {
-	base := filepath.Base(imagePath)                      // 전체 경로에서 파일명만 추출
-	label := strings.TrimSuffix(base, filepath.Ext(base)) // 확장자 제거
-	return "fig:" + label
+// isImageMetaComment: HTML 내에 `<!--typst-image` 라인이 있으면 해당 문자열 반환
+func isImageMetaComment(node ast.Node) (string, bool) {
+	var literal string
+	switch x := node.(type) {
+	case *ast.HTMLSpan:
+		literal = string(x.Literal)
+	case *ast.HTMLBlock:
+		literal = string(x.Literal)
+	default:
+		return "", false
+	}
+
+	idx := strings.Index(literal, "<!--typst-image")
+	if idx == -1 {
+		return "", false
+	}
+	end := strings.Index(literal, "-->")
+	if end == -1 {
+		end = len(literal)
+	}
+
+	metaRaw := literal[idx+len("<!--typst-image") : end]
+	return metaRaw, true
+}
+
+// parseImageMeta: 주석으로부터 image meta 정보를 파싱 후 imageMeta 구조체로 반환
+func parseImageMeta(metaRaw string) imageMeta {
+	im := imageMeta{}
+	lines := strings.Split(metaRaw, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+		val = strings.Trim(val, "\"")
+		if key == "label" {
+			im.Label = val
+		}
+	}
+	return im
 }
 
 // isBeginExclude는 HTML에 <!--typst-begin-exclude가 포함되었는지 확인
@@ -176,20 +215,6 @@ func isEndExclude(node ast.Node) bool {
 	return false
 }
 
-// extractRawTypst는 "<!--raw-typst" 이후의 문자열을 간단히 추출
-func extractRawTypst(s string) string {
-	idx := strings.Index(s, "<!--raw-typst")
-	if idx == -1 {
-		return ""
-	}
-	rest := s[idx+len("<!--raw-typst"):]
-	end := strings.Index(rest, "-->")
-	if end == -1 {
-		return rest
-	}
-	return rest[:end]
-}
-
 // escapeString은 Typst 코드 내에서 필요한 백슬래시, 따옴표 등을 이스케이프 처리
 func escapeString(s string) string {
 	var b strings.Builder
@@ -202,19 +227,20 @@ func escapeString(s string) string {
 	return b.String()
 }
 
-
 // -----------------------------------------------------------------------------
 // Typst 변환 관련 Types & Functions
 // -----------------------------------------------------------------------------
 
 // typRenderer는 Markdown AST를 Typst 포맷으로 변환하기 위한 렌더러 구조체
 type typRenderer struct {
-	builder            *strings.Builder // 변환 결과를 담을 버퍼
-	opts               Options          // 활성화된 옵션들
-	h1Level            int              // Heading 레벨 보정값
-	skipBlocks         bool             // 특정 구간(<!--typst-begin-exclude--> ~ <!--typst-end-exclude>) 스킵 여부
-	altTextBuffer      *strings.Builder // 이미지 대체 텍스트를 임시로 모으는 버퍼
-	currentTableMeta   *tableMeta       // 현재 테이블의 meta 정보
+	builder           *strings.Builder // 변환 결과를 담을 버퍼
+	opts              Options          // 활성화된 옵션 (현재는 더미 옵션)
+	h1Level           int              // Heading 레벨 보정값
+	skipBlocks        bool             // 특정 구간(<!--typst-begin-exclude--> ~ <!--typst-end-exclude>) 스킵 여부
+	altTextBuffer     *strings.Builder // 이미지 대체 텍스트를 임시로 모으는 버퍼
+	currentTableMeta  *tableMeta       // 현재 테이블의 meta 정보
+	currentImageMeta  *imageMeta       // 현재 이미지의 meta 정보 (label 등)
+	rawTypstNext      bool             // raw-typst 주석 후 다음 code block을 typst 코드 그대로 삽입하기 위한 플래그
 }
 
 // typVisitor는 ast.Walk 시 실제 노드 방문 로직을 typRenderer에 위임하기 위한 구조체
@@ -237,7 +263,6 @@ func newTypRenderer(opts Options, h1Level int) *typRenderer {
 }
 
 // Render 함수는 Markdown 텍스트를 AST로 파싱한 뒤, Typst 문자열로 변환해 반환
-// opts를 통해 옵션을 설정하며, h1Level로 Heading 레벨의 시작값을 조정할 수 있음
 func Render(md []byte, opts Options, h1Level int) (string, error) {
 	// Markdown 파서에 사용할 확장 기능들 설정
 	extensions := parser.CommonExtensions |
@@ -263,7 +288,7 @@ func Render(md []byte, opts Options, h1Level int) (string, error) {
 
 // walker 함수는 AST를 순회하며, 노드 종류와 상태에 따라 Typst 코드를 생성
 func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
-	// <!--typst-begin-exclude-->가 등장하여 skipBlocks가 true가 된 상태에서는
+	// <!--typst-begin-exclude-->가 등장하여 skipBlocks가 true인 경우,
 	// <!--typst-end-exclude--> 노드가 나올 때까지 모든 블록을 건너뜀
 	if r.skipBlocks && !isEndExclude(node) {
 		return ast.GoToNext
@@ -296,10 +321,6 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// BLOCKQUOTE
 	// ---------------------------------------------------------
 	case *ast.BlockQuote:
-		// OptionBlockquote가 설정된 경우에만 Typst의 quote 구문을 사용
-		if !r.hasOption(OptionBlockquote) {
-			return ast.GoToNext
-		}
 		if entering {
 			r.builder.WriteString("#quote(block:true,\"")
 		} else {
@@ -307,7 +328,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 		}
 
 	// ---------------------------------------------------------
-	// EM(italic) / STRONG(bold)
+	// EM (italic) / STRONG (bold)
 	// ---------------------------------------------------------
 	case *ast.Emph:
 		if entering {
@@ -347,18 +368,24 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// ---------------------------------------------------------
 	case *ast.CodeBlock:
 		if entering {
-			// Typst에서는 #raw(block:true, lang:"언어", "코드") 형태를 사용
-			r.builder.WriteString("#raw(block:true,")
-			if len(n.Info) > 0 {
-				tokens := strings.Fields(string(n.Info))
-				langOnly := tokens[0]
-				r.builder.WriteString(`lang:"`)
-				r.builder.WriteString(escapeString(langOnly))
-				r.builder.WriteString(`",`)
+			// raw-Typst 주석이 있었으면 typst 코드를 그대로 삽입
+			if r.rawTypstNext {
+				r.builder.WriteString(string(n.Literal))
+				r.builder.WriteString("\n")
+				r.rawTypstNext = false
+			} else {
+				r.builder.WriteString("#raw(block:true,")
+				if len(n.Info) > 0 {
+					tokens := strings.Fields(string(n.Info))
+					langOnly := tokens[0]
+					r.builder.WriteString(`lang:"`)
+					r.builder.WriteString(escapeString(langOnly))
+					r.builder.WriteString(`",`)
+				}
+				r.builder.WriteByte('"')
+				r.builder.WriteString(escapeString(string(n.Literal)))
+				r.builder.WriteString("\")\n")
 			}
-			r.builder.WriteByte('"')
-			r.builder.WriteString(escapeString(string(n.Literal)))
-			r.builder.WriteString("\")\n")
 		}
 
 	// ---------------------------------------------------------
@@ -399,7 +426,6 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			if r.currentTableMeta != nil {
 				meta = *r.currentTableMeta
 			} else {
-				// 기본값
 				meta = tableMeta{
 					Caption:   "Default Table Caption",
 					Placement: "none",
@@ -408,30 +434,20 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				}
 			}
 
-			// #figure(...) 열기
 			r.builder.WriteString("#figure(\n")
-			// caption
 			r.builder.WriteString(fmt.Sprintf("  caption: [%s],\n", meta.Caption))
-			// placement
 			r.builder.WriteString(fmt.Sprintf("  placement: %s,\n", meta.Placement))
-			// table(
 			r.builder.WriteString("  table(\n")
-			// columns
 			r.builder.WriteString(fmt.Sprintf("    columns: %s,\n", meta.Columns))
-			// align
 			r.builder.WriteString(fmt.Sprintf("    align: %s,\n", meta.Align))
-			// report.template의 기본 스타일
 			r.builder.WriteString(`    inset: (x: 8pt, y: 4pt),
 		stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
 		fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
 `)
 		} else {
-			// table(...) 닫고
 			r.builder.WriteString("  )\n")
-			// #figure(...) 닫고
-			if r.currentTableMeta.Label != "" {
+			if r.currentTableMeta != nil && r.currentTableMeta.Label != "" {
 				r.builder.WriteString(fmt.Sprintf(") <%s>\n", r.currentTableMeta.Label))
-				// 사용 후 초기화
 				r.currentTableMeta = nil
 			} else {
 				r.builder.WriteString(")\n")
@@ -443,7 +459,6 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 		} else {
 			r.builder.WriteString("),")
 		}
-	// TableBody, TableFooter, TableRow: 기본 처리 (필요 시 추가 가능)
 	case *ast.TableCell:
 		if entering {
 			r.builder.WriteByte('[')
@@ -469,23 +484,22 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	// ---------------------------------------------------------
 	case *ast.Image:
 		if entering {
-			// 먼저 alt 텍스트를 수집하기 위해 builder를 임시로 바꿈
+			// alt 텍스트 수집을 위해 임시 버퍼 사용
 			oldBuilder := r.builder
 			r.altTextBuffer = &strings.Builder{}
 			r.builder = r.altTextBuffer
-
-			// 이미지 노드의 자식(주로 Text 노드) 순회
 			for _, child := range n.Children {
 				ast.Walk(child, &typVisitor{r})
 			}
-
-			// alt 텍스트 수집 후 원래 builder 복원
 			r.builder = oldBuilder
 			dest := string(n.Destination)
 			altText := strings.TrimSpace(r.altTextBuffer.String())
-			label := getFigureLabel(dest)
-
-			// #figure( image("..."), caption: [...], ... ) 형식으로 작성
+			var label string
+			// HTML 주석으로 전달된 image meta에서 label이 있으면 사용, 없으면 label 출력 안함.
+			if r.currentImageMeta != nil && r.currentImageMeta.Label != "" {
+				label = r.currentImageMeta.Label
+				r.currentImageMeta = nil
+			}
 			r.builder.WriteString(fmt.Sprintf(
 				"\n#figure(\n\tplacement: none,\n\timage(%q)",
 				escapeString(dest),
@@ -494,14 +508,16 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			if altText != "" {
 				r.builder.WriteString(fmt.Sprintf(",\n\tcaption: [%s]", escapeString(altText)))
 			}
-			// 라벨(fig:파일명)
-			r.builder.WriteString(fmt.Sprintf("\n) <%s>\n", label))
-			// 이미지 노드 내부 텍스트(자식 노드)는 이미 altText로만 사용했으므로, 추가 탐색 불필요
+			if label != "" {
+				r.builder.WriteString(fmt.Sprintf("\n) <fig:%s>\n", label))
+			} else {
+				r.builder.WriteString("\n)\n")
+			}
 			return ast.SkipChildren
 		}
 
 	// ---------------------------------------------------------
-	// HTML 블록, HTML 스팬
+	// HTML 블록, HTML 스팬 처리
 	// ---------------------------------------------------------
 	case *ast.HTMLSpan, *ast.HTMLBlock:
 		if entering {
@@ -512,7 +528,6 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			case *ast.HTMLBlock:
 				htmlContent = string(x.Literal)
 			}
-
 			// <!--typst-begin-exclude-->인지 확인
 			if isBeginExclude(htmlContent) {
 				r.skipBlocks = true
@@ -523,23 +538,20 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				r.skipBlocks = false
 				return ast.GoToNext
 			}
-
-			// OptionRawTypst가 꺼져 있으면 raw typst 처리 무시
-			if !r.hasOption(OptionRawTypst) {
-				return ast.GoToNext
-			}
-
 			if metaRaw, ok := isTableMetaComment(n); ok {
 				m := parseTableMeta(metaRaw)
 				r.currentTableMeta = &m
-				// typst-table 코멘트 외 다른 처리(예: raw-typst 등)는 필요한 경우 추가
 				return ast.GoToNext
 			}
-
-			// <!--raw-typst가 포함된 HTML이면 Typst 코드만 추출
+			if metaRaw, ok := isImageMetaComment(n); ok {
+				im := parseImageMeta(metaRaw)
+				r.currentImageMeta = &im
+				return ast.GoToNext
+			}
+			// raw-typst 주석이 발견되면 다음 code block에 대해 typst 코드를 그대로 삽입하도록 플래그 설정
 			if strings.Contains(htmlContent, "<!--raw-typst") {
-				extracted := extractRawTypst(htmlContent)
-				r.builder.WriteString(extracted)
+				r.rawTypstNext = true
+				return ast.GoToNext
 			}
 		}
 
@@ -549,23 +561,6 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	case *ast.Text:
 		if entering {
 			content := string(n.Literal)
-
-			// 문서 내에 "![...](...)" 형태의 이미지를 텍스트로 포함하고 있다면 교체
-			if strings.Contains(content, "![") && strings.Contains(content, "](") {
-				imageRe := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-				converted := imageRe.ReplaceAllStringFunc(content, func(m string) string {
-					matches := imageRe.FindStringSubmatch(m)
-					if len(matches) == 3 {
-						alt := matches[1]
-						url := matches[2]
-						return `#image("` + escapeString(url) + `", alt:"` + escapeString(alt) + `")`
-					}
-					return m
-				})
-				r.builder.WriteString(converted)
-				return ast.GoToNext
-			}
-			// 일반 텍스트는 그대로 추가
 			r.builder.WriteString(content)
 		}
 
@@ -588,7 +583,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 		}
 
 	// ---------------------------------------------------------
-	// 줄바꿈(Soft / Hard)
+	// 줄바꿈 (Soft / Hard)
 	// ---------------------------------------------------------
 	case *ast.Softbreak:
 		if entering {
@@ -602,57 +597,10 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 
 	return ast.GoToNext
 }
-
 // hasOption은 특정 옵션 비트가 켜져 있는지 확인하는 헬퍼 함수
 func (r *typRenderer) hasOption(opt Options) bool {
 	return (r.opts & opt) != 0
 }
-
-
-// -----------------------------------------------------------------------------
-// (주석 처리된) 테이블 정렬 관련 함수들
-// 필요 시 추가 구현 가능
-// -----------------------------------------------------------------------------
-//
-// // gatherTableAlignments는 Table 노드의 Header 행에서 셀 정렬 정보를 추출해 반환
-// func gatherTableAlignments(t *ast.Table) []string {
-// 	var aligns []string
-//
-// 	for _, child := range t.GetChildren() {
-// 		if header, ok := child.(*ast.TableHeader); ok {
-// 			// 일반적으로 헤더에는 하나의 행(Row)만 존재한다고 가정
-// 			if rowNode := header.GetChildren(); len(rowNode) > 0 {
-// 				if row, ok := rowNode[0].(*ast.TableRow); ok {
-// 					for _, cellNode := range row.GetChildren() {
-// 						if cell, ok := cellNode.(*ast.TableCell); ok {
-// 							aligns = append(aligns, cellAlignString(cell.Align))
-// 						}
-// 					}
-// 				}
-// 			}
-// 			break
-// 		}
-// 	}
-// 	return aligns
-// }
-//
-// // cellAlignString은 ast.TableCell의 Align 값을 Typst에서 사용하는 정렬 문자열로 변환
-// func cellAlignString(a ast.CellAlignFlags) string {
-// 	switch a {
-// 	case ast.TableAlignmentLeft:
-// 		return "left"
-// 	case ast.TableAlignmentCenter:
-// 		return "center"
-// 	case ast.TableAlignmentRight:
-// 		return "right"
-// 	default:
-// 		return "left"
-// 	}
-// }
-//
-// -----------------------------------------------------------------------------
-
-
 // -----------------------------------------------------------------------------
 // 메인 함수
 // -----------------------------------------------------------------------------
@@ -687,9 +635,8 @@ func main() {
 		panic(err)
 	}
 
-	// 옵션은 필요에 따라 조합해 사용 가능
-	// 여기서는 blockquote, raw typst, math 옵션을 켬
-	opts := Options(OptionBlockquote | OptionRawTypst | OptionMath)
+	// 더미 옵션 2개 사용 (template 용도)
+	opts := Options(OptionDummy1 | OptionDummy2)
 
 	// h1Level=1로 설정하여 Markdown의 Heading 레벨에 1만큼 더함
 	typstData, err := Render(mdData, opts, 1)

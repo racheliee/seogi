@@ -12,10 +12,10 @@ Example equation: $y = m x + b$
 due to auto formatting of markdown files,
 
 use raw-typst comments
-
 $ sum_(k=0)^n k
     &= 1 + ... + n \
     &= (n(n+1)) / 2 $
+
 
 == Lists
 #list([
@@ -36,7 +36,6 @@ Third item
 == Block Quotes
 #quote(block:true,"
 This is a single-line quote.
-
 This is a second-line quote.
 ")
 
@@ -55,11 +54,12 @@ func main() {
 
 Let's insert a cat image here.
 
+
 #figure(
 	placement: none,
 	image("./cat.png"),
 	caption: [Cat]
-) <fig:cat>
+) <fig:test-label>
 
 
 == Links
@@ -82,8 +82,8 @@ table.header([No.],[Name],[Description],),[1],[Apple],[Red fruit],[2],[Banana],[
 ) <tab:mytable>
 
 == Raw Typst Tags
-
 #box[This sentence is written directly in Typst syntax!]
+
 
 == Exclusion of Certain Sections
 

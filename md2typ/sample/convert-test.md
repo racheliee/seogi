@@ -12,11 +12,13 @@ due to auto formatting of markdown files,
 
 use raw-typst comments
 
-<!--raw-typst
+<!--raw-typst-->
+
+```typ
 $ sum_(k=0)^n k
     &= 1 + ... + n \
     &= (n(n+1)) / 2 $
--->
+```
 
 ## Lists
 
@@ -31,7 +33,6 @@ $ sum_(k=0)^n k
 ## Block Quotes
 
 > This is a single-line quote.
->
 > This is a second-line quote.
 
 ## Code Blocks
@@ -49,6 +50,11 @@ func main() {
 ## Images
 
 Let's insert a cat image here.
+
+<!--typst-image
+label: test-label
+-->
+
 ![Cat](./cat.png)
 
 ## Links
@@ -75,9 +81,11 @@ label: "tab:mytable"
 
 ## Raw Typst Tags
 
-<!--raw-typst
+<!--raw-typst-->
+
+```typ
 #box[This sentence is written directly in Typst syntax!]
--->
+```
 
 ## Exclusion of Certain Sections
 

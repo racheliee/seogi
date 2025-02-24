@@ -1,27 +1,25 @@
 # md2typ
 
-- `md2typ` is a Golang program that converts Markdown files into Typst format.
-- It uses the [gomarkdown/markdown](https://github.com/gomarkdown/markdown) package to parse Markdown text into an Abstract Syntax Tree (AST), and then traverses the AST to convert each Markdown element into Typst syntax.
+- `md2typ` is a Go program that converts Markdown files into Typst format.
+- It utilizes the [gomarkdown/markdown](https://github.com/gomarkdown/markdown) package to parse Markdown text into an Abstract Syntax Tree (AST) and then traverses the AST to convert each Markdown element into Typst syntax.
 
 ---
 
 ## Key Features
 
 - **Markdown → Typst Conversion**:  
-  Converts various Markdown syntax elements (headings, paragraphs, blockquotes, emphasis, code, lists, tables, images, links, etc.) into Typst format.
+  Supports conversion of various Markdown elements (headings, paragraphs, blockquotes, emphasis, code, lists, tables, images, links, etc.) into Typst format.
 
 - **Heading Conversion**:  
-  Converts Markdown's `# Heading` syntax into Typst's heading format using equals signs (`=`) (e.g., `# Heading` → `= Heading`).
-
-- **Paragraphs and Line Breaks**:  
-  Each paragraph is separated by two empty lines in the Typst output.
+  Markdown headings (e.g., `# Heading`) are converted into Typst's heading format using equals signs (`=`).  
+  Example: `# Heading` → `= Heading`
 
 - **Blockquotes**:  
-  When the `OptionBlockquote` option is enabled, Markdown blockquotes are converted into Typst's `#quote(block: true, "...")` syntax.
+  Markdown blockquotes are converted into Typst’s `#quote(block: true, "...")` syntax.
 
 - **Text Formatting**:
 
-  - _Italics_: `#emph[...]`
+  - _Italic_: `#emph[...]`
   - **Bold**: `#strong[...]`
   - ~~Strikethrough~~: `#strike[...]`
 
@@ -30,50 +28,61 @@
   - Inline code: `#raw(block:false, "code")`
   - Code blocks: `#raw(block:true, lang:"language", "code")`
 
-- **Horizontal Rule**:  
-  Markdown's horizontal rule is converted into Typst's `#line(length:100%)`.
+- **Horizontal Rules**:  
+  Markdown horizontal rules are converted to Typst’s `#line(length:100%)`.
 
-- **Lists**:  
-  Ordered lists are converted into `#enum(start:1, ... )`, and unordered lists are converted into `#list(...)`. Each list item is wrapped in square brackets (`[ ]`).
+- **Lists**:
 
-- **Tables**:  
-  Markdown tables are converted into Typst's `#figure(...)` syntax with `table(...)` inside. Additionally, HTML comments (`<!--typst-table ... -->`) can be used to set table metadata (caption, position, column structure, alignment, label) (default values exist).
+  - Ordered lists are converted to `#enum(start:1, ... )`
+  - Unordered lists are converted to `#list(...)`  
+    Each list item is enclosed in square brackets (`[ ]`).
 
-- **Images**:  
-  Markdown image syntax (`![alt](url)`) is converted into Typst's `#figure(...)` syntax. The filename is extracted from the image file path to automatically generate a label in the form of `fig:filename`, and the alt text is used as the caption.
+- **Tables**:
+
+  - Markdown tables are converted into Typst’s `#figure(...)` containing a `table(...)` block.
+  - HTML comments (`<!--typst-table ... -->`) are used to define metadata such as captions, positioning, column configuration, alignment, and labels (with default values provided).
+
+- **Images**:
+
+  - Markdown image syntax (`![alt](url)`) is converted into Typst’s `#figure(...)` syntax.
+  - HTML comments (`<!--typst-image ... -->`) are used for metadata configuration (such as labels, with no default values).
 
 - **Links**:  
-  Markdown links are converted into `#link("URL")[text]` format.
+  Markdown links are converted to Typst’s `#link("URL")[text]` format.
 
-- **Math Expressions**:  
-  Inline math expressions are converted into `$...$`, and block math expressions are converted into `$$...$$`.
+- **Mathematical Expressions**:
 
-  > For block math expressions, due to auto-formatting issues in Markdown files, consider using `<!-raw-typst-->` comments or other solutions.
+  - Inline equations are converted as `$...$`.
+  - Block equations are converted as `$$...$$`.
 
-- **Raw Typst Code and Exclusion Blocks**:
-  - Code within HTML comments like `<!--raw-typst ... -->` is extracted as raw Typst code.
-  - Blocks between `<!--typst-begin-exclude-->` and `<!--typst-end-exclude-->` are excluded from conversion.
+  > Block equations require the `<!--raw-typst-->` comment to prevent auto-formatting issues in Markdown.
 
-## How to Run
+- **Raw Typst Code & Exclusion Blocks**:
+  - Code blocks following the HTML comment `<!--raw-typst-->` are extracted as raw Typst code.
+  - Blocks enclosed between `<!--typst-begin-exclude-->` and `<!--typst-end-exclude-->` are excluded from conversion.
+
+---
+
+## Usage
 
 ### Build
 
-Run the following command in the project directory to build the `md2typ` executable:
+Run the following command in the project directory to generate the `md2typ` executable:
 
 ```bash
 go build -o md2typ .
 ```
 
-### Conversion Execution
+### Convert Markdown to Typst
 
-To convert a Markdown file into Typst format, run the following command:
+To convert a Markdown file into Typst format, run:
 
 ```bash
 ./md2typ <input.md> [output.typ]
 ```
 
 - `<input.md>`: Path to the Markdown file to be converted.
-- `[output.typ]`: (Optional) Path to the output Typst file. If not specified, a file with the same name as the input file but with a `.typ` extension will be created.
+- `[output.typ]` (optional): Path to the output Typst file. If not specified, a file with the same name as the input file but with the `.typ` extension will be created.
 
 Example:
 
@@ -81,25 +90,17 @@ Example:
 ./md2typ ./sample/convert-test.md
 ```
 
-The above command converts `./sample/convert-test.md` and saves it as `convert-test.typ`.
+This command converts `./sample/convert-test.md` into `convert-test.typ`.
 
 ---
 
-## Options and Settings
+## Options & Settings
 
-Currently, conversion options are hardcoded and can be combined using bit flags as follows:
-
-- `OptionBlockquote`: Enables blockquote conversion.
-- `OptionRawTypst`: Enables raw Typst code processing.
-- `OptionMath`: Enables math expression conversion.
-
-These options are combined and used within the `main` function and can be adjusted as needed.
+A template-based approach allows for different conversion logic. Currently, it is a placeholder option.
 
 ---
 
 ## TODO
 
-- Modify to handle subpar image comments and their corresponding adjustments.
-- Improve to allow setting template metadata via YAML headers.
-- Consider allowing raw-typst comments to be inserted separately above code blocks.
-- Consider applying different options based on the template during conversion.
+- Modify the image metadata parsing to align with Typst comments.
+- Improve metadata handling by allowing YAML headers for template configuration.
