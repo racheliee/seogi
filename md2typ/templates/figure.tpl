@@ -1,4 +1,3 @@
-
 #figure(
   placement: none,
   image("{{ .ImagePath }}")

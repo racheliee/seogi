@@ -1,4 +1,3 @@
-
 #figure(
   {{- if .Caption }}
   caption: [{{ .Caption }}],
