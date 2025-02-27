@@ -79,16 +79,14 @@ Below is a simple table example:
 <!--typst-table
 caption: This is an example of a table caption
 placement: none
-columns: (6em, auto, auto)
-align: (center, center, right)
 label: mytable
 -->
 
-| No. | Name   | Description  |
-| --- | ------ | ------------ |
-| 1   | Apple  | Red fruit    |
-| 2   | Banana | Yellow fruit |
-| 3   | Kiwi   | Green fruit  |
+| No. | Name   | Description  | test |
+| --- | ------ | ------------ | ---- |
+| 1   | Apple  | Red fruit    | test |
+| 2   | Banana | Yellow fruit | test |
+| 3   | Kiwi   | Green fruit  | test |
 
 ## Raw Typst Tags
 
@@ -110,7 +108,6 @@ This section is enclosed between `<!--typst-begin-exclude-->` and
 <!--typst-end-exclude-->
 
 Additionally, the content after this exclusion will be converted.
-
 By running the conversion program with this example document, you can verify the following features:
 
 1. **Heading level conversion**

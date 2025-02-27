@@ -23,12 +23,16 @@
 = Test Document
 This document is an example for testing various Markdown features.
 
+
 == Inline Math
 Example equation: $y = m x + b$
 
+
 == Block Math
 due to auto formatting of markdown files,
+
 use raw-typst comments
+
 $ sum_(k=0)^n k
     &= 1 + ... + n \
     &= (n(n+1)) / 2 $
@@ -39,15 +43,18 @@ $ sum_(k=0)^n k
 [Second item],
 [Third item],
 )
+
 #enum(start:1,[Ordered list item],
 [Second item],
 [Third item],
 )
 
+
 == Block Quotes
 
 #quote(block:true, "This is a single-line quote.
-This is a second-line quote.")
+This is a second-line quote.
+")
 == Code Blocks
 #raw(block:true, lang:"go", "package main
 
@@ -61,6 +68,7 @@ func main() {
 == Images
 Let's insert a cat image here.
 
+
 #figure(
   placement: none,
   image("./cat.png"), 
@@ -68,22 +76,28 @@ Let's insert a cat image here.
 ) <fig:test-label>
 
 
+
 == Links
 Here is a link to #link("https://www.google.com")[Google].
 
+
 == Table
 Below is a simple table example:
+
 
 #figure(
   caption: [This is an example of a table caption],
   placement: none,
   table(
-    columns: (6em, auto, auto),
-    align: (center, center, right),
+    columns: (4),
     inset: (x: 8pt, y: 4pt),
 		stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
 		fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
-    table.header([No.],[Name],[Description],),[1],[Apple],[Red fruit],[2],[Banana],[Yellow fruit],[3],[Kiwi],[Green fruit],
+    table.header([No.],[Name],[Description],[test],
+),[1],[Apple],[Red fruit],[test],
+[2],[Banana],[Yellow fruit],[test],
+[3],[Kiwi],[Green fruit],[test],
+
   )
 ) <tab:mytable>
 
@@ -93,8 +107,10 @@ Below is a simple table example:
 
 == Exclusion of Certain Sections
 This section will be converted.
+
 Additionally, the content after this exclusion will be converted.
 By running the conversion program with this example document, you can verify the following features:
+
 #enum(start:1,[#strong[Heading level conversion]],
 [#strong[Inline/block math processing]: Check if equations are properly converted to Typst format.],
 [#strong[List conversion (ordered and unordered)]],
@@ -105,3 +121,4 @@ By running the conversion program with this example document, you can verify the
 [#strong[Table conversion] (Ensure correct alignment of cells)],
 [#strong[Raw Typst tags] (Preserve Typst syntax inside HTML comments)],
 )
+
