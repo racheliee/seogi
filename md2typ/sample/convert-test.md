@@ -6,10 +6,6 @@ authors:
     department: Dept. of Computer Science and Engineering
     organization: Sungkyunkwan University
     email: example@gmail.com
-  - name: '20xxxxxxxx Rachel Park'
-    department: 'Dept. of Computer Science and Engineering'
-    organization: 'Sungkyunkwan University'
-    email: 'example@gmail.com'
 toc: true
 ---
 
