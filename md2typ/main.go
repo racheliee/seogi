@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	
+
 	// validate arguments
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <input.md> [output.typ]\n", os.Args[0])

@@ -6,6 +6,14 @@ import (
 	"github.com/gomarkdown/markdown/ast"
 )
 
+// TODO: set options according to the template (report, assignment, etc.)
+type Options uint8
+
+const (
+	OptionDummy1 = 1 << iota
+	OptionDummy2
+)
+
 // table / image meta for md comments -> used to fill tableData / imageData
 type tableMeta struct {
 	Caption   string
@@ -41,7 +49,6 @@ func (ib *IndentedBuilder) WriteLine(line string) {
 	ib.builder.WriteString(line)
 	ib.builder.WriteByte('\n')
 }
-
 
 // write text without indentation
 func (ib *IndentedBuilder) Write(text string) {

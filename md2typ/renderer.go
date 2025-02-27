@@ -12,13 +12,6 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 )
 
-// TODO: set options according to the template (report, assignment, etc.)
-type Options uint8
-const (
-	OptionDummy1 = 1 << iota
-	OptionDummy2
-)
-
 // main rendering function for converting Markdown to Typst
 func Render(md []byte, opts Options, h1Level int) (string, error) {
 	extensions := parser.CommonExtensions | parser.Strikethrough | parser.Tables | parser.NoEmptyLineBeforeBlock | parser.Includes
@@ -166,7 +159,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			r.builder.WriteLine("[" + content + "],")
 			return ast.SkipChildren
 		}
-	
+
 	// ---------- Tables ----------
 	case *ast.Table:
 		if entering {
@@ -181,7 +174,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 					Align:     "",
 				}
 			}
-			
+
 			// if columns is not set, find the first TableHeader and calculate the number of cells
 			if meta.Columns == "" {
 				hfv := &headerFinderVisitor{}
@@ -192,7 +185,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				}
 				if headerCells == 0 {
 					headerCells = 1
-				}				
+				}
 				meta.Columns = "(" + strconv.Itoa(headerCells) + ")"
 			}
 
@@ -266,7 +259,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 
 			// Extract the destination of the image
 			dest := string(n.Destination)
-			
+
 			// set label if exists
 			var label string
 			if r.currentImageMeta != nil && r.currentImageMeta.Label != "" {
@@ -287,7 +280,7 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			} else {
 				r.builder.Write(figStr)
 			}
-			
+
 			// ignore children nodes due to already processed
 			return ast.SkipChildren
 		}
@@ -356,8 +349,6 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 
 	return ast.GoToNext
 }
-
-// ---------- Helper func. ----------
 
 // render child nodes of the given node
 func (r *typRenderer) renderChildNodes(n ast.Node) string {

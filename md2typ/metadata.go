@@ -17,7 +17,7 @@ type Metadata struct {
 	Date         string `yaml:"date"`
 	Authors      []struct {
 		Name         string `yaml:"name"`
-		StudentNo	 string `yaml:"student-no"`
+		StudentNo    string `yaml:"student-no"`
 		Department   string `yaml:"department"`
 		Organization string `yaml:"organization"`
 		Email        string `yaml:"email"`
