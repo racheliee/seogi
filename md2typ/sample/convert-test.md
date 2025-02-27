@@ -1,3 +1,18 @@
+---
+title: Test Report Title for Typst
+course: Introduction to Test (SWE3003)
+authors:
+  - name: 20xxxxxx Hyungjun Shon
+    department: Dept. of Computer Science and Engineering
+    organization: Sungkyunkwan University
+    email: example@gmail.com
+  - name: '20xxxxxxxx Rachel Park'
+    department: 'Dept. of Computer Science and Engineering'
+    organization: 'Sungkyunkwan University'
+    email: 'example@gmail.com'
+toc: true
+---
+
 # Test Document
 
 This document is an example for testing various Markdown features.

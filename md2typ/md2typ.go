@@ -5,7 +5,6 @@
 // NOTE: 동적 table column 계산을 위한 방법도 visitor의 다수 선언을 이용한 야매 방식으로 처리 -> 추후 수정 필요
 
 // TODO: subpar image 주석과 대응하게 사용할 수 있도록 수정
-// TODO: yaml header를 통해 template의 메타데이터 설정 가능하도록 수정
 
 package main
 
@@ -19,6 +18,7 @@ import (
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/ast"
 	"github.com/gomarkdown/markdown/parser"
+	"gopkg.in/yaml.v2"
 )
 
 // -----------------------------------------------------------------------------
@@ -33,6 +33,21 @@ const (
 
 // 여러 옵션을 동시에 담기 위한 비트 플래그 타입
 type Options uint8
+
+// report yaml header 구조체
+type Metadata struct {
+	Title        string `yaml:"title"`
+	Course       string `yaml:"course"`
+	Date         string `yaml:"date"`
+	Authors      []struct {
+		Name         string `yaml:"name"`
+		Department   string `yaml:"department"`
+		Organization string `yaml:"organization"`
+		Email        string `yaml:"email"`
+	} `yaml:"authors"`
+	Bibliography string `yaml:"bibliography"`
+	Toc          bool   `yaml:"toc"`
+}
 
 // table의 meta 정보를 담는 구조체
 type tableMeta struct {
@@ -699,6 +714,98 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 func (r *typRenderer) hasOption(opt Options) bool {
 	return (r.opts & opt) != 0
 }
+
+// -----------------------------------------------------------------------------
+// YAML 프론트매터 추출 및 Typst 헤더 생성 함수
+// -----------------------------------------------------------------------------
+
+// extractYAMLHeader는 Markdown 파일의 시작부분 YAML 헤더를 추출하고 파싱한 후,
+// 파싱된 메타데이터와 YAML 헤더를 제거한 Markdown 본문을 반환합니다.
+func extractYAMLHeader(mdData []byte) (*Metadata, []byte, error) {
+	mdStr := string(mdData)
+	lines := strings.Split(mdStr, "\n")
+	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "---" {
+		var yamlLines []string
+		var i int
+		for i = 1; i < len(lines); i++ {
+			if strings.TrimSpace(lines[i]) == "---" {
+				break
+			}
+			yamlLines = append(yamlLines, lines[i])
+		}
+		yamlContent := strings.Join(yamlLines, "\n")
+		var meta Metadata
+		if err := yaml.Unmarshal([]byte(yamlContent), &meta); err != nil {
+			return nil, mdData, err
+		}
+		content := strings.Join(lines[i+1:], "\n")
+		return &meta, []byte(content), nil
+	}
+	return nil, mdData, nil
+}
+
+// generateTypstHeader는 파싱된 Metadata를 기반으로 Typst 문법의 헤더 문자열을 생성합니다.
+// 빈 값인 필드는 아예 출력하지 않습니다.
+func generateTypstHeader(meta *Metadata) string {
+	var b strings.Builder
+	b.WriteString(`#import "../../typst-templates/report/report.typ":*
+
+#show: report.with(
+`)
+	// title 필드는 항상 포함 (비어있으면 default 처리 가능)
+	if meta.Title != "" {
+		b.WriteString("  title: [")
+		b.WriteString(meta.Title)
+		b.WriteString("],\n")
+	}
+	if meta.Course != "" {
+		b.WriteString("  course: [")
+		b.WriteString(meta.Course)
+		b.WriteString("],\n")
+	}
+	if meta.Date != "" {
+		b.WriteString("  date: [")
+		b.WriteString(meta.Date)
+		b.WriteString("],\n")
+	}
+	if len(meta.Authors) > 0 {
+		b.WriteString("  authors: (")
+		for _, author := range meta.Authors {
+			b.WriteString(`
+    (
+      name: "`)
+			b.WriteString(author.Name)
+			b.WriteString(`",
+      department: [`)
+			b.WriteString(author.Department)
+			b.WriteString(`],
+      organization: [`)
+			b.WriteString(author.Organization)
+			b.WriteString(`],
+	  	email: "`)
+			b.WriteString(author.Email)
+			b.WriteString(`"),`)
+		}
+		b.WriteString("),\n")
+	}
+	if meta.Bibliography != "" {
+		b.WriteString("  bibliography: bibliography(\"")
+		b.WriteString(meta.Bibliography)
+		b.WriteString("\"),\n")
+	}
+	b.WriteString(")\n")
+	if meta.Toc {
+		b.WriteString(`
+// table of contents
+#v(6mm)
+#outline()
+#pagebreak()
+`)
+	}
+	return b.String()
+}
+
+
 // -----------------------------------------------------------------------------
 // 메인 함수
 // -----------------------------------------------------------------------------
@@ -711,9 +818,6 @@ func main() {
 
 	inputFile := os.Args[1]
 
-	// 출력 파일 경로 결정
-	// 1) 두 번째 인자가 있으면 사용
-	// 2) 없으면 입력 파일 확장자를 .typ로 변경
 	var outputFile string
 	if len(os.Args) > 2 {
 		outputFile = os.Args[2]
@@ -733,22 +837,30 @@ func main() {
 		panic(err)
 	}
 
-	// 더미 옵션 2개 사용 (template 용도)
+	// YAML 프론트매터 추출: 메타데이터와 Markdown 본문 분리
+	meta, content, err := extractYAMLHeader(mdData)
+	if err != nil {
+		panic(err)
+	}
+
+	var header string
+	if meta != nil {
+		header = generateTypstHeader(meta)
+	}
+
 	opts := Options(OptionDummy1 | OptionDummy2)
-
-	// h1Level=1로 설정하여 Markdown의 Heading 레벨에 1만큼 더함
-	typstData, err := Render(mdData, opts, 1)
+	typstBody, err := Render(content, opts, 1)
 	if err != nil {
 		panic(err)
 	}
 
-	// 결과 Typst 파일로 출력
-	err = os.WriteFile(outputFile, []byte(typstData), 0644)
+	finalOutput := header + "\n" + typstBody
+
+	err = os.WriteFile(outputFile, []byte(finalOutput), 0644)
 	if err != nil {
 		panic(err)
 	}
 
-	// 변환 완료 메시지
 	_, _ = io.WriteString(os.Stdout,
 		fmt.Sprintf("success: %s -> %s\n", inputFile, outputFile))
 }
