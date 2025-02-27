@@ -12,14 +12,14 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 )
 
+// TODO: set options according to the template (report, assignment, etc.)
 type Options uint8
-
 const (
 	OptionDummy1 = 1 << iota
 	OptionDummy2
 )
 
-// Render는 Markdown 데이터를 파싱하여 Typst 코드 문자열로 변환합니다.
+// main rendering function for converting Markdown to Typst
 func Render(md []byte, opts Options, h1Level int) (string, error) {
 	extensions := parser.CommonExtensions | parser.Strikethrough | parser.Tables | parser.NoEmptyLineBeforeBlock | parser.Includes
 	p := parser.NewWithExtensions(extensions)
@@ -29,16 +29,17 @@ func Render(md []byte, opts Options, h1Level int) (string, error) {
 	return r.builder.String(), nil
 }
 
-// typVisitor는 ast.Walk 호출 시 typRenderer의 walker를 위임합니다.
+// delegate a walker from typRenderer when calling ast.Walk
 type typVisitor struct {
 	r *typRenderer
 }
 
+// implements the ast.Visitor interface
 func (v *typVisitor) Visit(node ast.Node, entering bool) ast.WalkStatus {
 	return v.r.walker(node, entering)
 }
 
-// typRenderer는 AST 순회를 통해 Typst 코드를 생성합니다.
+// typRenderer generate Typst content from markdown AST
 type typRenderer struct {
 	builder           *IndentedBuilder
 	opts              Options
@@ -50,6 +51,7 @@ type typRenderer struct {
 	rawTypstNext      bool             // raw-typst 주석 이후 다음 code block을 그대로 삽입
 }
 
+// generate a new typRenderer instance with indented builder and options
 func NewTypRenderer(opts Options, h1Level int) *typRenderer {
 	return &typRenderer{
 		builder: NewIndentedBuilder("  "),
@@ -58,6 +60,7 @@ func NewTypRenderer(opts Options, h1Level int) *typRenderer {
 	}
 }
 
+// walker function for AST nodes to render Typst content from Markdown
 func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	if r.skipBlocks && !isEndExclude(node) {
 		return ast.GoToNext
@@ -157,9 +160,9 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 		}
 	case *ast.ListItem:
 		if entering {
-			// 자식 노드를 렌더링한 후, 앞뒤 공백을 제거
+			// render child nodes and trim spaces
 			content := strings.TrimSpace(r.renderChildNodes(n))
-			// 각 항목을 새 줄로 출력하도록 WriteLine을 사용
+			// write list item line by line
 			r.builder.WriteLine("[" + content + "],")
 			return ast.SkipChildren
 		}
@@ -178,9 +181,9 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 					Align:     "",
 				}
 			}
-			// 기존: 하드코딩 대신, meta.Columns 값이 비어있으면 헤더의 TableCell 개수에 따라 자동 생성
+			
+			// if columns is not set, find the first TableHeader and calculate the number of cells
 			if meta.Columns == "" {
-				// headerFinderVisitor를 사용하여 첫 번째 TableHeader를 찾고 셀 개수를 계산
 				hfv := &headerFinderVisitor{}
 				ast.Walk(n, hfv)
 				headerCells := 0
@@ -192,6 +195,8 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				}				
 				meta.Columns = "(" + strconv.Itoa(headerCells) + ")"
 			}
+
+			// collect table content
 			tableContent := r.collectTableContent(n)
 			tableData := TableData{
 				Caption:   meta.Caption,
@@ -201,6 +206,8 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				Label:     meta.Label,
 				Rows:      tableContent,
 			}
+
+			// render table
 			tableStr, err := RenderTable(tableData)
 			if err != nil {
 				r.builder.WriteLine("#table( ... )")
@@ -242,21 +249,33 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 
 	// ---------- Images ----------
 	case *ast.Image:
+		// If we're entering the image node, process its children to extract alt text
 		if entering {
+			// Save the current builder and create a new one for temporary use
 			oldBuilder := r.builder
 			r.altTextBuffer = &strings.Builder{}
 			r.builder = NewIndentedBuilder("")
+
+			// Walk through the image node's children to collect alt text
 			for _, child := range n.Children {
 				ast.Walk(child, &typVisitor{r: r})
 			}
+			// Extract and trim the alt text from the temporary builder
 			altText := strings.TrimSpace(r.builder.String())
 			r.builder = oldBuilder
+
+			// Extract the destination of the image
 			dest := string(n.Destination)
+			
+			// set label if exists
 			var label string
 			if r.currentImageMeta != nil && r.currentImageMeta.Label != "" {
 				label = r.currentImageMeta.Label
+				// Clear the current image meta after use
 				r.currentImageMeta = nil
 			}
+
+			// render image
 			figData := FigureData{
 				ImagePath: dest,
 				Caption:   altText,
@@ -268,6 +287,8 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			} else {
 				r.builder.Write(figStr)
 			}
+			
+			// ignore children nodes due to already processed
 			return ast.SkipChildren
 		}
 
@@ -281,6 +302,8 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 			case *ast.HTMLBlock:
 				htmlContent = string(x.Literal)
 			}
+
+			// check if the block should be excluded
 			if isBeginExclude(htmlContent) {
 				r.skipBlocks = true
 				return ast.GoToNext
@@ -289,6 +312,14 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				r.skipBlocks = false
 				return ast.GoToNext
 			}
+
+			// check if the block contains raw Typst content
+			if isRawTypst(htmlContent) {
+				r.rawTypstNext = true
+				return ast.GoToNext
+			}
+
+			// check if the block contains metadata
 			if metaRaw, ok := isTableMetaComment(n); ok {
 				m := parseTableMeta(metaRaw)
 				r.currentTableMeta = &m
@@ -299,11 +330,9 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 				r.currentImageMeta = &im
 				return ast.GoToNext
 			}
-			if strings.Contains(htmlContent, "<!--raw-typst") {
-				r.rawTypstNext = true
-				return ast.GoToNext
-			}
 		}
+
+	// ---------- ETC. ----------
 	case *ast.Text:
 		if entering {
 			r.builder.Write(string(n.Literal))
@@ -328,6 +357,9 @@ func (r *typRenderer) walker(node ast.Node, entering bool) ast.WalkStatus {
 	return ast.GoToNext
 }
 
+// ---------- Helper func. ----------
+
+// render child nodes of the given node
 func (r *typRenderer) renderChildNodes(n ast.Node) string {
 	var tempBuilder strings.Builder
 	tempRenderer := *r
@@ -338,6 +370,7 @@ func (r *typRenderer) renderChildNodes(n ast.Node) string {
 	return strings.TrimSuffix(tempBuilder.String()+tempRenderer.builder.String(), "\n")
 }
 
+// collect table content from the given table node
 func (r *typRenderer) collectTableContent(table *ast.Table) string {
 	var buf strings.Builder
 	for _, child := range table.GetChildren() {
@@ -349,14 +382,19 @@ func (r *typRenderer) collectTableContent(table *ast.Table) string {
 	return buf.String()
 }
 
-type FigureData struct {
-	ImagePath string
+// type for table meta information (fill from tableMeta)
+type TableData struct {
 	Caption   string
+	Placement string
+	Columns   string
+	Align     string
 	Label     string
+	Rows      string
 }
 
-func RenderFigure(data FigureData) (string, error) {
-	tpl, err := template.ParseFiles("templates/figure.tpl")
+// function for rendering table content using template/table.tpl
+func RenderTable(data TableData) (string, error) {
+	tpl, err := template.ParseFiles("templates/table.tpl")
 	if err != nil {
 		return "", err
 	}
@@ -367,17 +405,16 @@ func RenderFigure(data FigureData) (string, error) {
 	return buf.String(), nil
 }
 
-type TableData struct {
+// type for image meta information (fill from imageMeta)
+type FigureData struct {
+	ImagePath string
 	Caption   string
-	Placement string
-	Columns   string
-	Align     string
 	Label     string
-	Rows      string
 }
 
-func RenderTable(data TableData) (string, error) {
-	tpl, err := template.ParseFiles("templates/table.tpl")
+// function for rendering figure content using template/figure.tpl
+func RenderFigure(data FigureData) (string, error) {
+	tpl, err := template.ParseFiles("templates/figure.tpl")
 	if err != nil {
 		return "", err
 	}

@@ -6,10 +6,7 @@ import (
 	"github.com/gomarkdown/markdown/ast"
 )
 
-// --- tableMeta, imageMeta, IndentedBuilder 등 이미 선언되어 있음 ---
-// (만약 중복 선언이 있다면 여기서만 관리)
-
-// tableMeta 및 imageMeta는 metadata를 위한 구조체 (renderer.go에서 사용한 것과 동일)
+// table / image meta for md comments -> used to fill tableData / imageData
 type tableMeta struct {
 	Caption   string
 	Placement string
@@ -22,13 +19,14 @@ type imageMeta struct {
 	Label string
 }
 
-// IndentedBuilder는 문자열 빌더에 자동 인덴테이션을 적용합니다.
+// custom strings.Builder that supports indentation
 type IndentedBuilder struct {
 	builder *strings.Builder
 	indent  string
 	level   int
 }
 
+// generate new IndentedBuilder with given indent string
 func NewIndentedBuilder(indent string) *IndentedBuilder {
 	return &IndentedBuilder{
 		builder: &strings.Builder{},
@@ -37,16 +35,20 @@ func NewIndentedBuilder(indent string) *IndentedBuilder {
 	}
 }
 
+// write line with indentation
 func (ib *IndentedBuilder) WriteLine(line string) {
 	ib.builder.WriteString(strings.Repeat(ib.indent, ib.level))
 	ib.builder.WriteString(line)
 	ib.builder.WriteByte('\n')
 }
 
+
+// write text without indentation
 func (ib *IndentedBuilder) Write(text string) {
 	ib.builder.WriteString(text)
 }
 
+// increase / decrease indentation level
 func (ib *IndentedBuilder) Increase() {
 	ib.level++
 }
@@ -57,11 +59,12 @@ func (ib *IndentedBuilder) Decrease() {
 	}
 }
 
+// return string representation of IndentedBuilder
 func (ib *IndentedBuilder) String() string {
 	return ib.builder.String()
 }
 
-// escapeString은 Typst 코드 내에서 백슬래시와 따옴표를 이스케이프합니다.
+// escape string
 func escapeString(s string) string {
 	var b strings.Builder
 	for _, ch := range s {
@@ -73,8 +76,7 @@ func escapeString(s string) string {
 	return b.String()
 }
 
-// isBeginExclude, isEndExclude, isTableMetaComment, parseTableMeta, isImageMetaComment, parseImageMeta는 아래와 같이 정의합니다.
-
+// special comment checkers (exclude, raw-typst, table, image)
 func isBeginExclude(html string) bool {
 	return strings.Contains(html, "<!--typst-begin-exclude")
 }
@@ -88,6 +90,10 @@ func isEndExclude(node ast.Node) bool {
 	default:
 		return false
 	}
+}
+
+func isRawTypst(html string) bool {
+	return strings.Contains(html, "<!--raw-typst")
 }
 
 func isTableMetaComment(node ast.Node) (string, bool) {
@@ -112,6 +118,29 @@ func isTableMetaComment(node ast.Node) (string, bool) {
 	return metaRaw, true
 }
 
+func isImageMetaComment(node ast.Node) (string, bool) {
+	var literal string
+	switch x := node.(type) {
+	case *ast.HTMLSpan:
+		literal = string(x.Literal)
+	case *ast.HTMLBlock:
+		literal = string(x.Literal)
+	default:
+		return "", false
+	}
+	idx := strings.Index(literal, "<!--typst-image")
+	if idx == -1 {
+		return "", false
+	}
+	end := strings.Index(literal, "-->")
+	if end == -1 {
+		end = len(literal)
+	}
+	metaRaw := literal[idx+len("<!--typst-image") : end]
+	return metaRaw, true
+}
+
+// parse meta data that given from comment
 func parseTableMeta(metaRaw string) tableMeta {
 	tm := tableMeta{
 		Caption:   "",
@@ -147,28 +176,6 @@ func parseTableMeta(metaRaw string) tableMeta {
 	return tm
 }
 
-func isImageMetaComment(node ast.Node) (string, bool) {
-	var literal string
-	switch x := node.(type) {
-	case *ast.HTMLSpan:
-		literal = string(x.Literal)
-	case *ast.HTMLBlock:
-		literal = string(x.Literal)
-	default:
-		return "", false
-	}
-	idx := strings.Index(literal, "<!--typst-image")
-	if idx == -1 {
-		return "", false
-	}
-	end := strings.Index(literal, "-->")
-	if end == -1 {
-		end = len(literal)
-	}
-	metaRaw := literal[idx+len("<!--typst-image") : end]
-	return metaRaw, true
-}
-
 func parseImageMeta(metaRaw string) imageMeta {
 	im := imageMeta{}
 	lines := strings.Split(metaRaw, "\n")
@@ -190,11 +197,12 @@ func parseImageMeta(metaRaw string) imageMeta {
 	return im
 }
 
-// --- Header Finder & Cell Counter for Table ---
+// visitor for finding table header node
 type headerFinderVisitor struct {
 	header ast.Node
 }
 
+// implement ast.Visitor interface for headerFinderVisitor that set v.header to table header
 func (v *headerFinderVisitor) Visit(n ast.Node, entering bool) ast.WalkStatus {
 	if entering {
 		if _, ok := n.(*ast.TableHeader); ok {
@@ -205,10 +213,12 @@ func (v *headerFinderVisitor) Visit(n ast.Node, entering bool) ast.WalkStatus {
 	return ast.GoToNext
 }
 
+// visitor for counting table cell nodes
 type cellCounterVisitor struct {
 	count int
 }
 
+// implement ast.Visitor interface for cellCounterVisitor that count table cell nodes
 func (v *cellCounterVisitor) Visit(n ast.Node, entering bool) ast.WalkStatus {
 	if entering {
 		if _, ok := n.(*ast.TableCell); ok {
@@ -219,6 +229,7 @@ func (v *cellCounterVisitor) Visit(n ast.Node, entering bool) ast.WalkStatus {
 	return ast.GoToNext
 }
 
+// function that count and return table header cells count for set column count
 func headerCellsCount(node ast.Node) int {
 	visitor := &cellCounterVisitor{}
 	ast.Walk(node, visitor)

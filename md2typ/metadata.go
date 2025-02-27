@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Metadata는 YAML 프론트매터의 내용을 담습니다.
+// metadata structure for YAML header in Markdown files (for report template)
 type Metadata struct {
 	Title        string `yaml:"title"`
 	Course       string `yaml:"course"`
@@ -23,11 +23,12 @@ type Metadata struct {
 	Toc          bool   `yaml:"toc"`
 }
 
-// extractYAMLHeader는 Markdown 파일의 시작부분 YAML 헤더를 추출한 후,
-// 메타데이터와 YAML 헤더를 제거한 Markdown 본문을 반환합니다.
+// extract YAML header from Markdown data and return metadata and content
 func extractYAMLHeader(mdData []byte) (*Metadata, []byte, error) {
 	mdStr := string(mdData)
 	lines := strings.Split(mdStr, "\n")
+
+	// extract YAML header area
 	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "---" {
 		var yamlLines []string
 		var i int
@@ -42,21 +43,29 @@ func extractYAMLHeader(mdData []byte) (*Metadata, []byte, error) {
 		if err := yaml.Unmarshal([]byte(yamlContent), &meta); err != nil {
 			return nil, mdData, err
 		}
+
+		// extract content area
 		content := strings.Join(lines[i+1:], "\n")
 		return &meta, []byte(content), nil
 	}
 	return nil, mdData, nil
 }
 
-// generateTypstHeader는 templates/typst_header.tpl 파일을 이용해 Typst 헤더를 생성합니다.
+// generate Typst metadata header from YAML metadata using template/typst_header.tpl
 func generateTypstHeader(meta *Metadata) (string, error) {
+
+	// parse header template
 	tpl, err := template.ParseFiles("templates/typst_header.tpl")
 	if err != nil {
 		return "", err
 	}
+
+	// execute template with metadata
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, meta); err != nil {
 		return "", err
 	}
+
+	// return rendered header
 	return buf.String(), nil
 }
