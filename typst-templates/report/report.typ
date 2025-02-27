@@ -31,6 +31,17 @@
   // The paper's content.
   body
 ) = {
+
+  // if authors is empty, assign default author before using it
+if authors == () {
+  authors = (
+    (name: "Author Name", 
+    department: [Dept. of Computer Science and Engineering], 
+    organization: [Sungkyunkwan University], 
+    email: "example@gmail.com"),
+  )
+}
+
   
   // Set document metadata.
   set document(title: title, author: authors.map(author => author.name))
