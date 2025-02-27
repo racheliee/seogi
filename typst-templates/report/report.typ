@@ -269,7 +269,7 @@ if authors == () {
   )
 
   // Configure paragraph properties.
-  set par(spacing: 0.45em, justify: true, first-line-indent: 1em, leading: 0.45em)
+  set par(spacing: 1.2em, justify: true, first-line-indent: 0em, leading: 0.45em)
 
   // Display abstract and index terms.
   if abstract != none [
