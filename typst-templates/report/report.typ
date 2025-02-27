@@ -50,19 +50,34 @@ if authors == () {
   set text(font: ("Libertinus Serif","UnBatangOTF"), size: 10pt, spacing: .35em)
 
   // Enums numbering
-  set enum(numbering: "1)a)i)")
+  set enum(numbering: "1.a.i.")
 
 
   // Tables & figures
   show figure: set block(spacing: 15.5pt)
   show figure: set place(clearance: 15.5pt)
   show figure.where(kind: table): set figure.caption(position: top)
-  show figure.where(kind: table): set text(size: 8pt)
-  show figure.where(kind: table): set figure(numbering: "I")
+  show figure.where(kind: table): set text(size: 8pt )
+  show figure.where(kind: table): set figure(numbering: "1")
   show figure.where(kind: image): set figure(supplement: figure-supplement, numbering: "1")
   show figure.caption: set text(size: 8pt)
   show figure.caption: set align(start)
   show figure.caption.where(kind: table): set align(center)
+  
+  
+  // add custom annotation for table and figure
+  show ref: fig => {
+  if fig.element != none and fig.element.func() == figure {
+    let label = if fig.element.kind == table { "Table. " } else { "Fig. " }
+    let numbers = numbering(fig.element.numbering, ..fig.element.counter.at(fig.location()))
+    label + numbers  
+  } else {
+    it 
+  }
+}
+
+
+
 
   // Adapt supplement in caption independently from supplement used for references.
   show figure: fig => {
