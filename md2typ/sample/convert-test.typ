@@ -5,18 +5,14 @@
   course: [Introduction to Test (SWE3003)],
   authors: (
     (
-      name: "20xxxxxx Hyungjun Shon",
+      name: "Hyungjun Shon",
+      student-no: "20xxxxxx",
       department: [Dept. of Computer Science and Engineering],
       organization: [Sungkyunkwan University],
-      email: "example@gmail.com"
+      email: "example@gmail.comp"
     ),
   ),
 )
-
-// table of contents
-#v(6mm)
-#outline()
-#pagebreak()
 
 
 

@@ -10,11 +10,14 @@ import (
 
 // metadata structure for YAML header in Markdown files (for report template)
 type Metadata struct {
+	DocumentType string `yaml:"type"`
+	TemplatePath string
 	Title        string `yaml:"title"`
 	Course       string `yaml:"course"`
 	Date         string `yaml:"date"`
 	Authors      []struct {
 		Name         string `yaml:"name"`
+		StudentNo	 string `yaml:"student-no"`
 		Department   string `yaml:"department"`
 		Organization string `yaml:"organization"`
 		Email        string `yaml:"email"`
@@ -42,6 +45,16 @@ func extractYAMLHeader(mdData []byte) (*Metadata, []byte, error) {
 		var meta Metadata
 		if err := yaml.Unmarshal([]byte(yamlContent), &meta); err != nil {
 			return nil, mdData, err
+		}
+
+		// handle document type
+		if meta.DocumentType == "" {
+			meta.DocumentType = "report"
+			meta.TemplatePath = "../../typst-templates/report/report.typ"
+		} else if meta.DocumentType == "report" {
+			meta.TemplatePath = "../../typst-templates/report/report.typ"
+		} else if meta.DocumentType == "assignment" {
+			meta.TemplatePath = "../../typst-templates/assignment/lib.typ"
 		}
 
 		// extract content area

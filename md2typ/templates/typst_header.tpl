@@ -1,6 +1,6 @@
-#import "../../typst-templates/report/report.typ":*
+#import "{{ .TemplatePath}}":*
 
-#show: report.with(
+#show: {{ .DocumentType }}.with(
 	{{- if .Title }}
   title: [{{ .Title }}],
 	{{- end }}
@@ -15,9 +15,18 @@
       {{- range .Authors }}
     (
       name: "{{ .Name }}",
+      {{- if .StudentNo }}
+      student-no: "{{ .StudentNo }}",
+      {{- end }}
+      {{- if .Department }}
       department: [{{ .Department }}],
+      {{- end }}
+      {{- if .Organization }}
       organization: [{{ .Organization }}],
+      {{- end }}
+      {{- if .Email }}
       email: "{{ .Email }}"
+      {{- end }}
     ),
       {{- end }}
   ),

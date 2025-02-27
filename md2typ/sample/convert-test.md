@@ -1,12 +1,14 @@
 ---
+type: report
 title: Test Report Title for Typst
 course: Introduction to Test (SWE3003)
 authors:
-  - name: 20xxxxxx Hyungjun Shon
+  - name: Hyungjun Shon
+    student-no: 20xxxxxx
     department: Dept. of Computer Science and Engineering
     organization: Sungkyunkwan University
-    email: example@gmail.com
-toc: true
+    email: example@gmail.comp
+toc: false
 ---
 
 # Test Document

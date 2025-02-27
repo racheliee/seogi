@@ -66,17 +66,15 @@ if authors == () {
   
   
   // add custom annotation for table and figure
-  show ref: fig => {
-  if fig.element != none and fig.element.func() == figure {
-    let label = if fig.element.kind == table { "Table. " } else { "Fig. " }
-    let numbers = numbering(fig.element.numbering, ..fig.element.counter.at(fig.location()))
-    label + numbers  
-  } else {
-    it 
-  }
-}
-
-
+//   show ref: fig => {
+//   if fig.element != none and fig.element.func() == figure {
+//     let label = if fig.element.kind == table { "Table. " } else { "Fig. " }
+//     let numbers = numbering(fig.element.numbering, ..fig.element.counter.at(fig.location()))
+//     label + numbers  
+//   } else {
+//     it 
+//   }
+// }
 
 
   // Adapt supplement in caption independently from supplement used for references.
@@ -250,7 +248,11 @@ if authors == () {
           columns: slice.len() * (1fr,),
           gutter: 12pt,
           ..slice.map(author => align(center, {
-            text(size: 11pt, author.name)
+            if "student-no" in author [
+              \ #text(size: 11pt, author.student-no + "  " + author.name)
+            ] else [
+              \ #text(size: 11pt, author.name)
+            ]
             if "department" in author [
               \ #emph(author.department)
             ]
